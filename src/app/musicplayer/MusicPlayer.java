@@ -1,13 +1,6 @@
 package app.musicplayer;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.net.URISyntaxException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -15,16 +8,13 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.LogManager;
 
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamReader;
+import com.google.common.collect.Lists;
 
 import app.musicplayer.model.Album;
 import app.musicplayer.model.Artist;
 import app.musicplayer.model.Library;
 import app.musicplayer.model.Song;
 import app.musicplayer.util.Resources;
-import app.musicplayer.util.XMLEditor;
-import app.musicplayer.view.ImportMusicDialogController;
 import app.musicplayer.view.MainController;
 import app.musicplayer.view.NowPlayingController;
 import javafx.application.Application;
@@ -36,11 +26,10 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class MusicPlayer extends Application {
 
     private static MainController mainController;
@@ -58,16 +47,6 @@ public class MusicPlayer extends Application {
 
     private static Stage stage;
 
-    // Stores the number of files in library.xml.
-    // This will then be compared to the number of files in the music directory when starting up the application to
-    // determine if the xml file needs to be updated by adding or deleting songs.
-    private static int xmlFileNum;
-
-    // Stores the last id that was assigned to a song.
-    // This is important when adding new songs after others have been deleted because the last id assigned
-    // may not necessarily be equal to the number of songs in the xml file if songs have been deleted.
-    private static int lastIdAssigned;
-
     public static void main(String[] args) {
         Application.launch(MusicPlayer.class);
     }
@@ -77,13 +56,8 @@ public class MusicPlayer extends Application {
 
         // Suppresses warning caused by converting music library data into xml file.
         LogManager.getLogManager().reset();
-        PrintStream dummyStream = new PrintStream(new OutputStream() {
-            public void write(int b) {
-                //do nothing
-            }
-        });
-        System.setOut(dummyStream);
-        System.setErr(dummyStream);
+//        System.setOut(dummyStream);
+//        System.setErr(dummyStream);
 
         timer = new Timer();
         timerCounter = 0;
@@ -108,8 +82,6 @@ public class MusicPlayer extends Application {
             stage.setMaximized(true);
             stage.show();
 
-            // Calls the function to check in the library.xml file exists. If it does not, the file is created.
-            checkLibraryXML();
         } catch (Exception ex) {
             ex.printStackTrace();
             System.exit(0);
@@ -122,24 +94,20 @@ public class MusicPlayer extends Application {
             Library.getArtists();
             Library.getPlaylists();
 
-            nowPlayingList = Library.loadPlayingList();
+            nowPlayingList = Lists.newArrayList();
 
             if (nowPlayingList.isEmpty()) {
-
-                Artist artist = Library.getArtists().get(0);
-
-                for (Album album : artist.getAlbums()) {
-                    nowPlayingList.addAll(album.getSongs());
-                }
+                Library.getSongs().stream()
+                .filter(Song::hasContent)
+                .forEach(nowPlayingList::add);
 
                 Collections.sort(nowPlayingList, (first, second) -> {
                     Album firstAlbum = Library.getAlbum(first.getAlbum());
                     Album secondAlbum = Library.getAlbum(second.getAlbum());
                     if (firstAlbum.compareTo(secondAlbum) != 0) {
                         return firstAlbum.compareTo(secondAlbum);
-                    } else {
-                        return first.compareTo(second);
                     }
+					return first.compareTo(second);
                 });
             }
 
@@ -149,8 +117,7 @@ public class MusicPlayer extends Application {
             timer = new Timer();
             timerCounter = 0;
             secondsPlayed = 0;
-            String path = nowPlaying.getLocation();
-            Media media = new Media(Paths.get(path).toUri().toString());
+            Media media = new Media(nowPlaying.getLocation());
             mediaPlayer = new MediaPlayer(media);
             mediaPlayer.setVolume(0.5);
             mediaPlayer.setOnEndOfMedia(new SongSkipper());
@@ -170,205 +137,11 @@ public class MusicPlayer extends Application {
                 thread2.start();
             }
 
-            new Thread(() -> {
-                XMLEditor.getNewSongs().forEach(song -> {
-                    try {
-                        Library.getArtist(song.getArtist()).downloadArtistImage();
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-                });
-            }).start();
-
             // Calls the function to initialize the main layout.
             Platform.runLater(this::initMain);
         });
 
         thread.start();
-    }
-
-    private static void checkLibraryXML() {
-        // Finds the jar file and the path of its parent folder.
-        File musicPlayerJAR = null;
-        try {
-            musicPlayerJAR = new File(MusicPlayer.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath());
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
-        }
-        String jarFilePath = musicPlayerJAR.getParentFile().getPath();
-
-        // Assigns the filepath to the XML filepath set in Resources.java
-        Resources.JAR = jarFilePath + "/";
-
-        // Specifies library.xml file and its location.
-        File libraryXML = new File(Resources.JAR + "library.xml");
-
-        // If the file exists, check if the music directory has changed.
-        Path musicDirectory;
-        if (libraryXML.exists()) {
-            // Gets music directory path from xml file so that the number of files in the
-            // music directory can be counted and compared to the data in the xml file.
-            // It is then passed as an argument when creating the directory watch.
-            musicDirectory = xmlMusicDirPathFinder();
-
-            // Try/catch block to deal with case where music directory has been renamed.
-            try {
-                // Gets the number of files in the music directory and the number of files saved in the xml file.
-                // These values will be compared to determine if the xml file needs to be updated.
-                int musicDirFileNum = musicDirFileNumFinder(musicDirectory.toFile(), 0);
-                xmlFileNum = xmlMusicDirFileNumFinder();
-
-                // If the number of files stored in the xml file is not the same as the number of files in the music directory.
-                // Music library has changed; update the xml file.
-                if (musicDirFileNum != xmlFileNum) {
-                    // Updates the xml file from the saved music directory.
-                    updateLibraryXML(musicDirectory);
-                }
-                // NullPointerException thrown by musicDirFileNumFinder().
-                // It occurs if the music directory has been renamed
-            } catch (NullPointerException npe) {
-                createLibraryXML();
-                // Gets the number of files saved in the xml file.
-                xmlFileNum = xmlMusicDirFileNumFinder();
-                // Gets music directory path from xml file so that it can be passed as an argument when creating the directory watch.
-                musicDirectory = xmlMusicDirPathFinder();
-            }
-
-            // If the library.xml file does not exist, the file is created from the user specified music library location.
-        } else if (!libraryXML.exists()) {
-            createLibraryXML();
-            // Gets the number of files saved in the xml file.
-            xmlFileNum = xmlMusicDirFileNumFinder();
-            // Gets music directory path from xml file so that it can be passed as an argument when creating the directory watch.
-            musicDirectory = xmlMusicDirPathFinder();
-        }
-    }
-
-    private static Path xmlMusicDirPathFinder() {
-        try {
-            // Creates reader for xml file.
-            XMLInputFactory factory = XMLInputFactory.newInstance();
-            factory.setProperty("javax.xml.stream.isCoalescing", true);
-            FileInputStream is = new FileInputStream(new File(Resources.JAR + "library.xml"));
-            XMLStreamReader reader = factory.createXMLStreamReader(is, "UTF-8");
-
-            String element = null;
-            String path = null;
-
-            // Loops through xml file looking for the music directory file path.
-            while(reader.hasNext()) {
-                reader.next();
-                if (reader.isWhiteSpace()) {
-                    continue;
-                } else if (reader.isStartElement()) {
-                    element = reader.getName().getLocalPart();
-                } else if (reader.isCharacters() && element.equals("path")) {
-                    path = reader.getText();
-                    break;
-                }
-            }
-            // Closes xml reader.
-            reader.close();
-
-            return Paths.get(path);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    private static int xmlMusicDirFileNumFinder() {
-        try {
-            // Creates reader for xml file.
-            XMLInputFactory factory = XMLInputFactory.newInstance();
-            factory.setProperty("javax.xml.stream.isCoalescing", true);
-            FileInputStream is = new FileInputStream(new File(Resources.JAR + "library.xml"));
-            XMLStreamReader reader = factory.createXMLStreamReader(is, "UTF-8");
-
-            String element = null;
-            String fileNum = null;
-
-            // Loops through xml file looking for the music directory file path.
-            while(reader.hasNext()) {
-                reader.next();
-                if (reader.isWhiteSpace()) {
-                    continue;
-                } else if (reader.isStartElement()) {
-                    element = reader.getName().getLocalPart();
-                } else if (reader.isCharacters() && element.equals("fileNum")) {
-                    fileNum = reader.getText();
-                    break;
-                }
-            }
-            // Closes xml reader.
-            reader.close();
-
-            // Converts the file number to an int and returns the value.
-            return Integer.parseInt(fileNum);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return 0;
-        }
-    }
-
-    private static int musicDirFileNumFinder(File musicDirectory, int i) {
-        // Lists all the files in the music directory and stores them in an array.
-        File[] files = musicDirectory.listFiles();
-
-        // Loops through the files, increments counter if file is found.
-        for (File file : files) {
-            if (file.isFile() && Library.isSupportedFileType(file.getName())) {
-                i++;
-            } else if (file.isDirectory()) {
-                i = musicDirFileNumFinder(file, i);
-            }
-        }
-        return i;
-    }
-
-    private static void updateLibraryXML(Path musicDirectory) {
-        // Sets the music directory for the XMLEditor.
-        XMLEditor.setMusicDirectory(musicDirectory);
-
-        // Checks if songs have to be added, deleted, or both to the xml file and
-        // performs the corresponding operation.
-        XMLEditor.addDeleteChecker();
-    }
-
-    private static void createLibraryXML() {
-        try {
-            FXMLLoader loader = new FXMLLoader(MusicPlayer.class.getResource(Resources.FXML + "ImportMusicDialog.fxml"));
-            BorderPane importView = loader.load();
-
-            // Create the dialog Stage.
-            Stage dialogStage = new Stage();
-            dialogStage.setTitle("Music Player Configuration");
-            // Forces user to focus on dialog.
-            dialogStage.initModality(Modality.WINDOW_MODAL);
-            // Sets minimal decorations for dialog.
-            dialogStage.initStyle(StageStyle.UTILITY);
-            // Prevents the alert from being re-sizable.
-            dialogStage.setResizable(false);
-            dialogStage.initOwner(stage);
-
-            // Sets the import music dialog scene in the stage.
-            dialogStage.setScene(new Scene(importView));
-
-            // Set the dialog into the controller.
-            ImportMusicDialogController controller = loader.getController();
-            controller.setDialogStage(dialogStage);
-
-            // Show the dialog and wait until the user closes it.
-            dialogStage.showAndWait();
-
-            // Checks if the music was imported successfully. Closes the application otherwise.
-            boolean musicImported = controller.isMusicImported();
-            if (!musicImported) {
-                System.exit(0);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     /**
@@ -601,7 +374,7 @@ public class MusicPlayer extends Application {
             timerCounter = 0;
             secondsPlayed = 0;
             String path = song.getLocation();
-            Media media = new Media(Paths.get(path).toUri().toString());
+            Media media = new Media(path);
             mediaPlayer = new MediaPlayer(media);
             mediaPlayer.volumeProperty().bind(mainController.getVolumeSlider().valueProperty().divide(200));
             mediaPlayer.setOnEndOfMedia(new SongSkipper());
@@ -647,21 +420,5 @@ public class MusicPlayer extends Application {
 
     public static Object getDraggedItem() {
         return draggedItem;
-    }
-
-    public static int getXMLFileNum() {
-        return xmlFileNum;
-    }
-
-    public static void setXMLFileNum(int i) {
-        xmlFileNum = i;
-    }
-
-    public static int getLastIdAssigned() {
-        return lastIdAssigned;
-    }
-
-    public static void setLastIdAssigned(int i) {
-        lastIdAssigned = i;
     }
 }

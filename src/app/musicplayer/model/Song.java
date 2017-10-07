@@ -1,6 +1,8 @@
 package app.musicplayer.model;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -18,6 +20,7 @@ import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
 
+import org.smof.gridfs.SmofGridRef;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -43,7 +46,7 @@ public final class Song implements Comparable<Song> {
     private int discNumber;
     private SimpleIntegerProperty playCount;
     private LocalDateTime playDate;
-    private String location;
+    private SmofGridRef location;
     private SimpleBooleanProperty playing;
     private SimpleBooleanProperty selected;
 
@@ -62,13 +65,7 @@ public final class Song implements Comparable<Song> {
      * @param location
      */
     public Song(int id, String title, String artist, String album, Duration length,
-                int trackNumber, int discNumber, int playCount, LocalDateTime playDate, String location) {
-
-        if (title == null) {
-            Path path = Paths.get(location);
-            String fileName = path.getFileName().toString();
-            title = fileName.substring(0, fileName.lastIndexOf('.'));
-        }
+                int trackNumber, int discNumber, int playCount, LocalDateTime playDate, SmofGridRef location) {
 
         if (album == null) {
             album = "Unknown Album";
@@ -159,7 +156,19 @@ public final class Song implements Comparable<Song> {
     }
 
     public String getLocation() {
-        return this.location;
+    	final Path path;
+    	if(location != null) {
+    		try {
+    			path = Paths.get("data", Integer.toString(getId()) + ".mp3");
+    			if(!Files.exists(path)) {
+        	    	Files.copy(Library.DB.stream(location), path);
+    			}
+    	    	return path.toUri().toString();
+    		} catch (IOException e) {
+    			throw new RuntimeException(e);
+    		}
+    	}
+    	return null;
     }
 
     public BooleanProperty playingProperty() {
@@ -186,7 +195,12 @@ public final class Song implements Comparable<Song> {
         this.selected.set(selected);
     }
 
-    public void played() {
+    @Override
+	public String toString() {
+		return "Song [title=" + title + ", artist=" + artist + ", album=" + album + ", location=" + location + "]";
+	}
+
+	public void played() {
         this.playCount.set(this.playCount.get() + 1);
         this.playDate = LocalDateTime.now();
 
@@ -239,4 +253,8 @@ public final class Song implements Comparable<Song> {
             return Integer.compare(this.trackNumber, other.trackNumber);
         }
     }
+
+	public boolean hasContent() {
+		return location != null;
+	}
 }

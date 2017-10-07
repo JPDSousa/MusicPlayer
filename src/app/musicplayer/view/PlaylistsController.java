@@ -16,7 +16,6 @@ import app.musicplayer.util.ControlPanelTableCell;
 import app.musicplayer.util.PlayingTableCell;
 import app.musicplayer.util.Resources;
 import app.musicplayer.util.SubView;
-import app.musicplayer.util.XMLEditor;
 import javafx.animation.Animation;
 import javafx.animation.Animation.Status;
 import javafx.animation.Interpolator;
@@ -50,6 +49,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class PlaylistsController implements Initializable, SubView {
 
     @FXML private TableView<Song> tableView;
@@ -75,7 +75,8 @@ public class PlaylistsController implements Initializable, SubView {
             setCycleDuration(Duration.millis(500));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {        	    		
+        @Override
+		protected void interpolate(double frac) {        	    		
             if (frac < 0.5) {
                 cell.setOpacity(1.0 - frac * 2);
             } else {
@@ -280,7 +281,9 @@ public class PlaylistsController implements Initializable, SubView {
     }
     
     @Override
-    public void scroll(char letter) {}
+    public void scroll(char letter) {
+    	// nothing to be done
+    }
 
     @Override
     public Song getSelectedSong() {
@@ -333,7 +336,7 @@ public class PlaylistsController implements Initializable, SubView {
             deletePlaylistAnimation.play();
 
             // Deletes the play list from the xml file.
-            XMLEditor.deletePlaylistFromXML(selectedPlaylist.getId());
+//            XMLEditor.deletePlaylistFromXML(selectedPlaylist.getId());
 
             // Loads the artists view.
             MusicPlayer.getMainController().loadView("artists");

@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -27,6 +28,8 @@ import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
+import org.rookit.dm.track.Track;
+import org.rookit.mongodb.DBManager;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -38,6 +41,7 @@ import app.musicplayer.util.Resources;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
+@SuppressWarnings("javadoc")
 public final class Library {
 
     private static final String ID = "id";
@@ -51,12 +55,17 @@ public final class Library {
     private static final String PLAYDATE = "playDate";
     private static final String LOCATION = "location";
 
-    private static ArrayList<Song> songs;
-    private static ArrayList<Artist> artists;
-    private static ArrayList<Album> albums;
-    private static ArrayList<Playlist> playlists;
+    private static List<Song> songs;
+    private static List<Artist> artists;
+    private static List<Album> albums;
+    private static List<Playlist> playlists;
     private static int maxProgress;
     private static ImportMusicTask<Boolean> task;
+    
+    static final DBManager DB = DBManager.open("localhost", 27039, "rookit");
+    static {
+    	DB.init();
+    }
 
     public static void importMusic(String path, ImportMusicTask<Boolean> task) throws Exception {
 
@@ -248,7 +257,8 @@ public final class Library {
         if (songs == null) {
             getSongs();
         }
-        return songs.get(id);
+        //return songs.get(id);
+        return songs.get(0);
     }
 
     public static Song getSong(String title) {
@@ -259,93 +269,17 @@ public final class Library {
     }
 
     private static void updateSongsList() {
-        try {
-
-            XMLInputFactory factory = XMLInputFactory.newInstance();
-            factory.setProperty("javax.xml.stream.isCoalescing", true);
-            FileInputStream is = new FileInputStream(new File(Resources.JAR + "library.xml"));
-            XMLStreamReader reader = factory.createXMLStreamReader(is, "UTF-8");
-
-            String element = "";
-            int id = -1;
-            String title = null;
-            String artist = null;
-            String album = null;
-            Duration length = null;
-            int trackNumber = -1;
-            int discNumber = -1;
-            int playCount = -1;
-            LocalDateTime playDate = null;
-            String location = null;
-
-            while(reader.hasNext()) {
-                reader.next();
-
-                if (reader.isWhiteSpace()) {
-                    continue;
-                } else if (reader.isStartElement()) {
-                    element = reader.getName().getLocalPart();
-                } else if (reader.isCharacters()) {
-                    String value = reader.getText();
-
-                    switch (element) {
-                        case ID:
-                            id = Integer.parseInt(value);
-                            break;
-                        case TITLE:
-                            title = value;
-                            break;
-                        case ARTIST:
-                            artist = value;
-                            break;
-                        case ALBUM:
-                            album = value;
-                            break;
-                        case LENGTH:
-                            length = Duration.ofSeconds(Long.parseLong(value));
-                            break;
-                        case TRACKNUMBER:
-                            trackNumber = Integer.parseInt(value);
-                            break;
-                        case DISCNUMBER:
-                            discNumber = Integer.parseInt(value);
-                            break;
-                        case PLAYCOUNT:
-                            playCount = Integer.parseInt(value);
-                            break;
-                        case PLAYDATE:
-                            playDate = LocalDateTime.parse(value);
-                            break;
-                        case LOCATION:
-                            location = value;
-                            break;
-                    } // End switch
-                } else if (reader.isEndElement() && reader.getName().getLocalPart().equals("song")) {
-
-                    songs.add(new Song(id, title, artist, album, length, trackNumber, discNumber, playCount, playDate, location));
-                    id = -1;
-                    title = null;
-                    artist = null;
-                    album = null;
-                    length = null;
-                    trackNumber = -1;
-                    discNumber = -1;
-                    playCount = -1;
-                    playDate = null;
-                    location = null;
-
-                } else if (reader.isEndElement() && reader.getName().getLocalPart().equals("songs")) {
-
-                    reader.close();
-                    break;
-                }
-            } // End while
-
-            reader.close();
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
+        DB.getTracks().stream().forEach(track -> {
+        	songs.add(fromTrack(track));
+        });
+    }
+    
+    private static Song fromTrack(Track track) {
+    	final Song song =  new Song(track.getId().hashCode(), track.getTitle().toString(), 
+    			track.getMainArtists().toString(), 
+    			"album", Duration.ofMillis(track.getDuration()), 1, 1, (int) track.getPlays(), 
+    			null, track.getPath());
+    	return song;
     }
 
     /**
@@ -369,40 +303,19 @@ public final class Library {
         if (albums == null) {
             getAlbums();
         }
-        return albums.stream().filter(album -> title.equals(album.getTitle())).findFirst().get();
+        return albums.stream().findFirst().get();
     }
 
     private static void updateAlbumsList() {
         albums = new ArrayList<>();
 
-        TreeMap<String, List<Song>> albumMap = new TreeMap<>(
-                songs.stream()
-                        .filter(song -> song.getAlbum() != null)
-                        .collect(Collectors.groupingBy(Song::getAlbum))
-        );
-
-        int id = 0;
-
-        for (Map.Entry<String, List<Song>> entry : albumMap.entrySet()) {
-            ArrayList<Song> songs = new ArrayList<>();
-
-            songs.addAll(entry.getValue());
-
-            TreeMap<String, List<Song>> artistMap = new TreeMap<>(
-                    songs.stream()
-                            .filter(song -> song.getArtist() != null)
-                            .collect(Collectors.groupingBy(Song::getArtist))
-            );
-
-            for (Map.Entry<String, List<Song>> e : artistMap.entrySet()) {
-                ArrayList<Song> albumSongs = new ArrayList<>();
-                String artist = e.getValue().get(0).getArtist();
-
-                albumSongs.addAll(e.getValue());
-
-                albums.add(new Album(id++, entry.getKey(), artist, albumSongs));
-            }
-        }
+        DB.getAlbums().stream().forEach(album -> {
+        	albums.add(new Album(album.getId().hashCode(), album.getTitle(), 
+        			album.getArtists().toString(),
+        			StreamSupport.stream(album.getTracks().spliterator(), false)
+        			.map(Library::fromTrack)
+        			.collect(Collectors.toList())));
+        });
     }
 
     /**
@@ -429,22 +342,9 @@ public final class Library {
     }
 
     private static void updateArtistsList() {
-        artists = new ArrayList<>();
-
-        TreeMap<String, List<Album>> artistMap = new TreeMap<>(
-                albums.stream()
-                        .filter(album -> album.getArtist() != null)
-                        .collect(Collectors.groupingBy(Album::getArtist))
-        );
-
-        for (Map.Entry<String, List<Album>> entry : artistMap.entrySet()) {
-
-            ArrayList<Album> albums = new ArrayList<>();
-
-            albums.addAll(entry.getValue());
-
-            artists.add(new Artist(entry.getKey(), albums));
-        }
+        artists = DB.getArtists().stream()
+        		.map(artist -> new Artist(artist.getName(), new ArrayList<>()))
+        		.collect(Collectors.toList());
     }
 
     public static void addPlaylist(String text) {
@@ -500,7 +400,7 @@ public final class Library {
             try {
                 XMLInputFactory factory = XMLInputFactory.newInstance();
                 factory.setProperty("javax.xml.stream.isCoalescing", true);
-                FileInputStream is = new FileInputStream(new File(Resources.JAR + "library.xml"));
+                FileInputStream is = new FileInputStream(new File(/*Resources.JAR + */"library.xml"));
                 XMLStreamReader reader = factory.createXMLStreamReader(is, "UTF-8");
 
                 String element;
@@ -595,7 +495,7 @@ public final class Library {
         try {
 
             XMLInputFactory factory = XMLInputFactory.newInstance();
-            FileInputStream is = new FileInputStream(new File(Resources.JAR + "library.xml"));
+            FileInputStream is = new FileInputStream(new File(/*Resources.JAR + */"library.xml"));
             XMLStreamReader reader = factory.createXMLStreamReader(is, "UTF-8");
 
             String element = "";

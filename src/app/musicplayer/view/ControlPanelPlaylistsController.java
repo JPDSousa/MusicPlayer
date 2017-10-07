@@ -6,19 +6,21 @@ import java.util.ResourceBundle;
 import app.musicplayer.MusicPlayer;
 import app.musicplayer.model.Library;
 import app.musicplayer.util.SubView;
-import app.musicplayer.util.XMLEditor;
 import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.layout.Pane;
 
+@SuppressWarnings("javadoc")
 public class ControlPanelPlaylistsController implements Initializable {
 	
 	@FXML private Pane playButton;
 	@FXML private Pane deleteButton;
 	
 	@Override
-	public void initialize(URL location, ResourceBundle resources) {}
+	public void initialize(URL location, ResourceBundle resources) {
+		// nothing to be done
+	}
 	
 	@FXML
 	private void playSong(Event e) {
@@ -39,7 +41,7 @@ public class ControlPanelPlaylistsController implements Initializable {
 		int selectedSongId = controller.getSelectedSong().getId();
 		
 		// Calls methods to delete selected song from play list in XML file.
-		XMLEditor.deleteSongFromPlaylist(selectedPlayListId, selectedSongId);
+//		XMLEditor.deleteSongFromPlaylist(selectedPlayListId, selectedSongId);
 
         // Removes the selected song from the playlist's song list in Library.
         Library.getPlaylist(selectedPlayListId).removeSong(selectedSongId);

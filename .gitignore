@@ -7,3 +7,8 @@ bin/
 out/
 *.MF
 MusicPlayer.iml
+
+img/
+/target/
+
+library\.xml

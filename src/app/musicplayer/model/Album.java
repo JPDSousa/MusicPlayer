@@ -7,6 +7,7 @@ import java.io.File;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 import javax.xml.stream.XMLInputFactory;
@@ -29,7 +30,7 @@ public final class Album implements Comparable<Album> {
     private String title;
     private String artist;
     private Image artwork;
-    private ArrayList<Song> songs;
+    private List<Song> songs;
     private SimpleObjectProperty<Image> artworkProperty;
 
     /**
@@ -41,7 +42,7 @@ public final class Album implements Comparable<Album> {
      * @param artist
      * @param songs
      */
-    public Album(int id, String title, String artist, ArrayList<Song> songs) {
+    public Album(int id, String title, String artist, List<Song> songs) {
         this.id = id;
         this.title = title;
         this.artist = artist;
