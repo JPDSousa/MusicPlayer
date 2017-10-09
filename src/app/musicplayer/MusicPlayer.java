@@ -1,19 +1,14 @@
 package app.musicplayer;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.logging.LogManager;
+import java.util.stream.Collectors;
 
-import com.google.common.collect.Lists;
+import org.rookit.dm.track.Track;
+import org.rookit.mongodb.DBManager;
 
-import app.musicplayer.model.Album;
-import app.musicplayer.model.Artist;
-import app.musicplayer.model.Library;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.CurrentPlaylist;
 import app.musicplayer.util.Resources;
 import app.musicplayer.view.MainController;
 import app.musicplayer.view.NowPlayingController;
@@ -32,393 +27,331 @@ import javafx.util.Duration;
 @SuppressWarnings("javadoc")
 public class MusicPlayer extends Application {
 
-    private static MainController mainController;
-    private static MediaPlayer mediaPlayer;
-    private static ArrayList<Song> nowPlayingList;
-    private static int nowPlayingIndex;
-    private static Song nowPlaying;
-    private static Timer timer;
-    private static int timerCounter;
-    private static int secondsPlayed;
-    private static boolean isLoopActive = false;
-    private static boolean isShuffleActive = false;
-    private static boolean isMuted = false;
-    private static Object draggedItem;
+	private static MainController mainController;
+	private static MediaPlayer mediaPlayer;
+	private static Timer timer;
+	private static int timerCounter;
+	private static int secondsPlayed;
+	private static Object draggedItem;
+	private static boolean isMuted = false;
+	
+	private static Stage stage;
+	
+	private static MusicPlayer current;
+	
+	public static MusicPlayer getCurrent() {
+		return current;
+	}
 
-    private static Stage stage;
+	public static void main(String[] args) {
+		Application.launch(MusicPlayer.class);
+	}
 
-    public static void main(String[] args) {
-        Application.launch(MusicPlayer.class);
-    }
+	private final DBManager library;
+	private final CurrentPlaylist nowPlaying;
 
-    @Override
-    public void start(Stage stage) throws Exception {
+	public MusicPlayer() {
+		this.library = DBManager.open("localhost", 27039, "rookit");
+		nowPlaying = new CurrentPlaylist(library);
+	}
+	
+	public DBManager getLibrary() {
+		return library;
+	}
 
-        // Suppresses warning caused by converting music library data into xml file.
-        LogManager.getLogManager().reset();
-//        System.setOut(dummyStream);
-//        System.setErr(dummyStream);
+	@Override
+	public void start(Stage stage) throws Exception {
+		current = this;
 
-        timer = new Timer();
-        timerCounter = 0;
-        secondsPlayed = 0;
+		timer = new Timer();
+		timerCounter = 0;
+		secondsPlayed = 0;
 
-        MusicPlayer.stage = stage;
-        MusicPlayer.stage.setTitle("Music Player");
-        MusicPlayer.stage.getIcons().add(new Image(this.getClass().getResource(Resources.IMG + "Icon.png").toString()));
-        MusicPlayer.stage.setOnCloseRequest(event -> {
-            Platform.exit();
-            System.exit(0);
-        });
+		MusicPlayer.stage = stage;
+		MusicPlayer.stage.setTitle("Music Player");
+		MusicPlayer.stage.getIcons().add(new Image(this.getClass().getResource(Resources.IMG + "Icon.png").toString()));
+		MusicPlayer.stage.setOnCloseRequest(event -> {
+			Platform.exit();
+			System.exit(0);
+		});
 
-        try {
-            // Load main layout from fxml file.
-            FXMLLoader loader = new FXMLLoader(this.getClass().getResource(Resources.FXML + "SplashScreen.fxml"));
-            VBox view = loader.load();
+		try {
+			// Load main layout from fxml file.
+			FXMLLoader loader = new FXMLLoader(this.getClass().getResource(Resources.FXML + "SplashScreen.fxml"));
+			VBox view = loader.load();
 
-            // Shows the scene containing the layout.
-            Scene scene = new Scene(view);
-            stage.setScene(scene);
-            stage.setMaximized(true);
-            stage.show();
+			// Shows the scene containing the layout.
+			Scene scene = new Scene(view);
+			stage.setScene(scene);
+			stage.setMaximized(true);
+			stage.show();
 
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            System.exit(0);
-        }
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			System.exit(0);
+		}
 
-        Thread thread = new Thread(() -> {
-            // Retrieves song, album, artist, and playlist data from library.
-            Library.getSongs();
-            Library.getAlbums();
-            Library.getArtists();
-            Library.getPlaylists();
+		Thread thread = new Thread(() -> {
+			nowPlaying.addAll(library.getTracks().stream()
+					.filter(track -> track.getPath() != null)
+					.limit(50)
+					.collect(Collectors.toList()));
 
-            nowPlayingList = Lists.newArrayList();
+			timer = new Timer();
+			timerCounter = 0;
+			secondsPlayed = 0;
+			Media media = new Media(nowPlaying.getCurrentURI());
+			mediaPlayer = new MediaPlayer(media);
+			mediaPlayer.setVolume(0.5);
+			mediaPlayer.setOnEndOfMedia(new SongSkipper());
 
-            if (nowPlayingList.isEmpty()) {
-                Library.getSongs().stream()
-                .filter(Song::hasContent)
-                .forEach(nowPlayingList::add);
+			//            File imgFolder = new File(Resources.JAR + "/img");
+			//            if (!imgFolder.exists()) {
+			//
+			//                Thread thread1 = new Thread(() -> {
+			//                    library.getArtists().forEach(Artist::downloadArtistImage);
+			//                });
+			//
+			//                Thread thread2 = new Thread(() -> {
+			//                    library.getAlbums().forEach(Album::downloadArtwork);
+			//                });
+			//
+			//                thread1.start();
+			//                thread2.start();
+			//            }
 
-                Collections.sort(nowPlayingList, (first, second) -> {
-                    Album firstAlbum = Library.getAlbum(first.getAlbum());
-                    Album secondAlbum = Library.getAlbum(second.getAlbum());
-                    if (firstAlbum.compareTo(secondAlbum) != 0) {
-                        return firstAlbum.compareTo(secondAlbum);
-                    }
-					return first.compareTo(second);
-                });
-            }
+			// Calls the function to initialize the main layout.
+			Platform.runLater(this::initMain);
+		});
 
-            nowPlaying = nowPlayingList.get(0);
-            nowPlayingIndex = 0;
-            nowPlaying.setPlaying(true);
-            timer = new Timer();
-            timerCounter = 0;
-            secondsPlayed = 0;
-            Media media = new Media(nowPlaying.getLocation());
-            mediaPlayer = new MediaPlayer(media);
-            mediaPlayer.setVolume(0.5);
-            mediaPlayer.setOnEndOfMedia(new SongSkipper());
+		thread.start();
+	}
 
-            File imgFolder = new File(Resources.JAR + "/img");
-            if (!imgFolder.exists()) {
+	/**
+	 * Initializes the main layout.
+	 */
+	private void initMain() {
+		try {
+			// Load main layout from fxml file.
+			FXMLLoader loader = new FXMLLoader(this.getClass().getResource(Resources.FXML + "Main.fxml"));
+			BorderPane view = loader.load();
 
-                Thread thread1 = new Thread(() -> {
-                    Library.getArtists().forEach(Artist::downloadArtistImage);
-                });
+			// Shows the scene containing the layout.
+			double width = stage.getScene().getWidth();
+			double height = stage.getScene().getHeight();
 
-                Thread thread2 = new Thread(() -> {
-                    Library.getAlbums().forEach(Album::downloadArtwork);
-                });
+			view.setPrefWidth(width);
+			view.setPrefHeight(height);
 
-                thread1.start();
-                thread2.start();
-            }
+			Scene scene = new Scene(view);
+			stage.setScene(scene);
 
-            // Calls the function to initialize the main layout.
-            Platform.runLater(this::initMain);
-        });
+			// Gives the controller access to the music player main application.
+			mainController = loader.getController();
+			mediaPlayer.volumeProperty().bind(mainController.getVolumeSlider().valueProperty().divide(200));
 
-        thread.start();
-    }
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
-    /**
-     * Initializes the main layout.
-     */
-    private void initMain() {
-        try {
-            // Load main layout from fxml file.
-            FXMLLoader loader = new FXMLLoader(this.getClass().getResource(Resources.FXML + "Main.fxml"));
-            BorderPane view = loader.load();
+	private class SongSkipper implements Runnable {
+		@Override
+		public void run() {
+			skip();
+		}
+	}
 
-            // Shows the scene containing the layout.
-            double width = stage.getScene().getWidth();
-            double height = stage.getScene().getHeight();
+	private class TimeUpdater extends TimerTask {
+		private int length = (int) nowPlaying.getCurrent().getDuration()/1000 * 4;
 
-            view.setPrefWidth(width);
-            view.setPrefHeight(height);
+		@Override
+		public void run() {
+			Platform.runLater(() -> {
+				if (timerCounter < length) {
+					if (++timerCounter % 4 == 0) {
+						mainController.updateTimeLabels();
+						secondsPlayed++;
+					}
+					if (!mainController.isTimeSliderPressed()) {
+						mainController.updateTimeSlider();
+					}
+				}
+			});
+		}
+	}
 
-            Scene scene = new Scene(view);
-            stage.setScene(scene);
+	/**
+	 * Plays selected song.
+	 */
+	public void play() {
+		if (mediaPlayer != null && !isPlaying()) {
+			mediaPlayer.play();
+			timer.scheduleAtFixedRate(new TimeUpdater(), 0, 250);
+			mainController.updatePlayPauseIcon(true);
+		}
+	}
 
-            // Gives the controller access to the music player main application.
-            mainController = loader.getController();
-            mediaPlayer.volumeProperty().bind(mainController.getVolumeSlider().valueProperty().divide(200));
+	/**
+	 * Checks if a song is playing.
+	 */
+	public boolean isPlaying() {
+		return mediaPlayer != null && MediaPlayer.Status.PLAYING.equals(mediaPlayer.getStatus());
+	}
 
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
+	/**
+	 * Pauses selected song.
+	 */
+	public void pause() {
+		if (isPlaying()) {
+			mediaPlayer.pause();
+			timer.cancel();
+			timer = new Timer();
+			mainController.updatePlayPauseIcon(false);
+		}
+	}
 
-    private static class SongSkipper implements Runnable {
-        @Override
-        public void run() {
-            skip();
-        }
-    }
+	public void seek(int seconds) {
+		if (mediaPlayer != null) {
+			mediaPlayer.seek(new Duration(seconds * 1000));
+			timerCounter = seconds * 4;
+			mainController.updateTimeLabels();
+		}
+	}
 
-    private static class TimeUpdater extends TimerTask {
-        private int length = (int) getNowPlaying().getLengthInSeconds() * 4;
+	/**
+	 * Skips song.
+	 */
+	public void skip() {
+		if (nowPlaying.hasNext()) {
+			boolean isPlaying = isPlaying();
+			mainController.updatePlayPauseIcon(isPlaying);
+			setNowPlaying(nowPlaying.next());
+			if (isPlaying) {
+				play();
+			}
+		} else {
+			mainController.updatePlayPauseIcon(false);
+		}
+	}
 
-        @Override
-        public void run() {
-            Platform.runLater(() -> {
-                if (timerCounter < length) {
-                    if (++timerCounter % 4 == 0) {
-                        mainController.updateTimeLabels();
-                        secondsPlayed++;
-                    }
-                    if (!mainController.isTimeSliderPressed()) {
-                        mainController.updateTimeSlider();
-                    }
-                }
-            });
-        }
-    }
+	public void back() {
+		if (timerCounter > 20 || !nowPlaying.hasPrevious()) {
+			mainController.initializeTimeSlider();
+			seek(0);
+		} else if(nowPlaying.hasPrevious()) {
+			boolean isPlaying = isPlaying();
+			setNowPlaying(nowPlaying.previous());
+			if (isPlaying) {
+				play();
+			}
+		}
+	}
 
-    /**
-     * Plays selected song.
-     */
-    public static void play() {
-        if (mediaPlayer != null && !isPlaying()) {
-            mediaPlayer.play();
-            timer.scheduleAtFixedRate(new TimeUpdater(), 0, 250);
-            mainController.updatePlayPauseIcon(true);
-        }
-    }
+	public static void mute(boolean isMuted) {
+		MusicPlayer.isMuted = !isMuted;
+		if (mediaPlayer != null) {
+			mediaPlayer.setMute(!isMuted);
+		}
+	}
 
-    /**
-     * Checks if a song is playing.
-     */
-    public static boolean isPlaying() {
-        return mediaPlayer != null && MediaPlayer.Status.PLAYING.equals(mediaPlayer.getStatus());
-    }
+	public void toggleLoop() {
+		nowPlaying.setLoopActive(!nowPlaying.isLoopActive());
+	}
 
-    /**
-     * Pauses selected song.
-     */
-    public static void pause() {
-        if (isPlaying()) {
-            mediaPlayer.pause();
-            timer.cancel();
-            timer = new Timer();
-            mainController.updatePlayPauseIcon(false);
-        }
-    }
+	public boolean isLoopActive() {
+		return nowPlaying.isLoopActive();
+	}
 
-    public static void seek(int seconds) {
-        if (mediaPlayer != null) {
-            mediaPlayer.seek(new Duration(seconds * 1000));
-            timerCounter = seconds * 4;
-            mainController.updateTimeLabels();
-        }
-    }
+	public void toggleShuffle() {
+		nowPlaying.setShuffleActive(!nowPlaying.isShuffleActive());
+		if (mainController.getSubViewController() instanceof NowPlayingController) {
+			mainController.loadView("nowPlaying");
+		}
+	}
 
-    /**
-     * Skips song.
-     */
-    public static void skip() {
-        if (nowPlayingIndex < nowPlayingList.size() - 1) {
-            boolean isPlaying = isPlaying();
-            mainController.updatePlayPauseIcon(isPlaying);
-            setNowPlaying(nowPlayingList.get(nowPlayingIndex + 1));
-            if (isPlaying) {
-                play();
-            }
-        } else if (isLoopActive) {
-            boolean isPlaying = isPlaying();
-            mainController.updatePlayPauseIcon(isPlaying);
-            nowPlayingIndex = 0;
-            setNowPlaying(nowPlayingList.get(nowPlayingIndex));
-            if (isPlaying) {
-                play();
-            }
-        } else {
-            mainController.updatePlayPauseIcon(false);
-            nowPlayingIndex = 0;
-            setNowPlaying(nowPlayingList.get(nowPlayingIndex));
-        }
-    }
+	public boolean isShuffleActive() {
+		return nowPlaying.isShuffleActive();
+	}
 
-    public static void back() {
-        if (timerCounter > 20 || nowPlayingIndex == 0) {
-            mainController.initializeTimeSlider();
-            seek(0);
-        } else {
-            boolean isPlaying = isPlaying();
-            setNowPlaying(nowPlayingList.get(nowPlayingIndex - 1));
-            if (isPlaying) {
-                play();
-            }
-        }
-    }
+	public Stage getStage() {
+		return stage;
+	}
 
-    public static void mute(boolean isMuted) {
-        MusicPlayer.isMuted = !isMuted;
-        if (mediaPlayer != null) {
-            mediaPlayer.setMute(!isMuted);
-        }
-    }
+	/**
+	 * Gets main controller object.
+	 * @return MainController
+	 */
+	public static MainController getMainController() {
+		return mainController;
+	}
 
-    public static void toggleLoop() {
-        isLoopActive = !isLoopActive;
-    }
+	/**
+	 * Gets currently playing song list.
+	 * @return arraylist of now playing songs
+	 */
+	public CurrentPlaylist getNowPlayingList() {
+		return nowPlaying;
+	}
 
-    public static boolean isLoopActive() {
-        return isLoopActive;
-    }
+	public void addSongToNowPlayingList(Track song) {
+		nowPlaying.add(song);
+	}
 
-    public static void toggleShuffle() {
+	public void setNowPlayingList(List<Track> list) {
+		nowPlaying.clear();
+		nowPlaying.addAll(list);
+	}
 
-        isShuffleActive = !isShuffleActive;
+	public void setNowPlaying(Track song) {
+		nowPlaying.markCurrentAsPlayed(secondsPlayed);
+		final String uri = nowPlaying.skipTo(song);
+		if(uri != null) {
+			if (mediaPlayer != null) {
+				mediaPlayer.stop();
+			}
+			if (timer != null) {
+				timer.cancel();
+			}
+			timer = new Timer();
+			timerCounter = 0;
+			secondsPlayed = 0;
+			Media media = new Media(uri);
+			mediaPlayer = new MediaPlayer(media);
+			mediaPlayer.volumeProperty().bind(mainController.getVolumeSlider().valueProperty().divide(200));
+			mediaPlayer.setOnEndOfMedia(new SongSkipper());
+			mediaPlayer.setMute(isMuted);
+			mainController.updateNowPlayingButton();
+			mainController.initializeTimeSlider();
+			mainController.initializeTimeLabels();
+		}
+	}
 
-        if (isShuffleActive) {
-            Collections.shuffle(nowPlayingList);
-        } else {
-            Collections.sort(nowPlayingList, (first, second) -> {
-                int result = Library.getAlbum(first.getAlbum()).compareTo(Library.getAlbum(second.getAlbum()));
-                if (result != 0) {
-                    return result;
-                }
-                result = Library.getAlbum(first.getAlbum()).compareTo(Library.getAlbum(second.getAlbum()));
-                if (result != 0) {
-                    return result;
-                }
-                result = first.compareTo(second);
-                return result;
-            });
-        }
+	public Track getNowPlaying() {
+		return nowPlaying.getCurrent();
+	}
 
-        nowPlayingIndex = nowPlayingList.indexOf(nowPlaying);
+	public String getTimePassed() {
+		int secondsPassed = timerCounter / 4;
+		int minutes = secondsPassed / 60;
+		int seconds = secondsPassed % 60;
+		return Integer.toString(minutes) + ":" + (seconds < 10 ? "0" + seconds : Integer.toString(seconds));
+	}
 
-        if (mainController.getSubViewController() instanceof NowPlayingController) {
-            mainController.loadView("nowPlaying");
-        }
-    }
+	public String getTimeRemaining() {
+		final long secondsPassed = timerCounter / 4;
+		final long totalSeconds = getNowPlaying().getDuration();
+		final long secondsRemaining = totalSeconds - secondsPassed;
+		final long minutes = secondsRemaining / 60;
+		final long seconds = secondsRemaining % 60;
+		return Long.toString(minutes) + ":" + (seconds < 10 ? "0" + seconds : Long.toString(seconds));
+	}
 
-    public static boolean isShuffleActive() {
-        return isShuffleActive;
-    }
+	public static void setDraggedItem(Object item) {
+		draggedItem = item;
+	}
 
-    public static Stage getStage() {
-        return stage;
-    }
-
-    /**
-     * Gets main controller object.
-     * @return MainController
-     */
-    public static MainController getMainController() {
-        return mainController;
-    }
-
-    /**
-     * Gets currently playing song list.
-     * @return arraylist of now playing songs
-     */
-    public static ArrayList<Song> getNowPlayingList() {
-        return nowPlayingList == null ? new ArrayList<>() : new ArrayList<>(nowPlayingList);
-    }
-
-    public static void addSongToNowPlayingList(Song song) {
-        if (!nowPlayingList.contains(song)) {
-            nowPlayingList.add(song);
-            Library.savePlayingList();
-        }
-    }
-
-    public static void setNowPlayingList(List<Song> list) {
-        nowPlayingList = new ArrayList<>(list);
-        Library.savePlayingList();
-    }
-
-    public static void setNowPlaying(Song song) {
-        if (nowPlayingList.contains(song)) {
-
-            updatePlayCount();
-            nowPlayingIndex = nowPlayingList.indexOf(song);
-            if (nowPlaying != null) {
-                nowPlaying.setPlaying(false);
-            }
-            nowPlaying = song;
-            nowPlaying.setPlaying(true);
-            if (mediaPlayer != null) {
-                mediaPlayer.stop();
-            }
-            if (timer != null) {
-                timer.cancel();
-            }
-            timer = new Timer();
-            timerCounter = 0;
-            secondsPlayed = 0;
-            String path = song.getLocation();
-            Media media = new Media(path);
-            mediaPlayer = new MediaPlayer(media);
-            mediaPlayer.volumeProperty().bind(mainController.getVolumeSlider().valueProperty().divide(200));
-            mediaPlayer.setOnEndOfMedia(new SongSkipper());
-            mediaPlayer.setMute(isMuted);
-            mainController.updateNowPlayingButton();
-            mainController.initializeTimeSlider();
-            mainController.initializeTimeLabels();
-        }
-    }
-
-    private static void updatePlayCount() {
-        if (nowPlaying != null) {
-            int length = (int) nowPlaying.getLengthInSeconds();
-            if ((100 * secondsPlayed / length) > 50) {
-                nowPlaying.played();
-            }
-        }
-    }
-
-    public static Song getNowPlaying() {
-        return nowPlaying;
-    }
-
-    public static String getTimePassed() {
-        int secondsPassed = timerCounter / 4;
-        int minutes = secondsPassed / 60;
-        int seconds = secondsPassed % 60;
-        return Integer.toString(minutes) + ":" + (seconds < 10 ? "0" + seconds : Integer.toString(seconds));
-    }
-
-    public static String getTimeRemaining() {
-        long secondsPassed = timerCounter / 4;
-        long totalSeconds = getNowPlaying().getLengthInSeconds();
-        long secondsRemaining = totalSeconds - secondsPassed;
-        long minutes = secondsRemaining / 60;
-        long seconds = secondsRemaining % 60;
-        return Long.toString(minutes) + ":" + (seconds < 10 ? "0" + seconds : Long.toString(seconds));
-    }
-
-    public static void setDraggedItem(Object item) {
-        draggedItem = item;
-    }
-
-    public static Object getDraggedItem() {
-        return draggedItem;
-    }
+	public Object getDraggedItem() {
+		return draggedItem;
+	}
 }
