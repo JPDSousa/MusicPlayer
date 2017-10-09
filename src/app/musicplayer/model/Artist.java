@@ -16,10 +16,8 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.image.Image;
 
-/**
- * Model class for an Artist
- *
- */
+
+@SuppressWarnings("javadoc")
 public final class Artist implements Comparable<Artist> {
 
     private String title;
@@ -142,19 +140,17 @@ public final class Artist implements Comparable<Artist> {
 
         if (arr.length < 2) {
             return title;
-        } else {
-
-            String firstWord = arr[0];
-            String theRest = arr[1];
-
-            switch (firstWord) {
-                case "A":
-                case "An":
-                case "The":
-                    return theRest;
-                default:
-                    return title;
-            }
         }
+		String firstWord = arr[0];
+		String theRest = arr[1];
+
+		switch (firstWord) {
+		    case "A":
+		    case "An":
+		    case "The":
+		        return theRest;
+		    default:
+		        return title;
+		}
     }
 }

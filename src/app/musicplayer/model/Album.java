@@ -24,6 +24,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.image.Image;
 
+@SuppressWarnings("javadoc")
 public final class Album implements Comparable<Album> {
 
     private int id;
@@ -32,7 +33,7 @@ public final class Album implements Comparable<Album> {
     private Image artwork;
     private List<Song> songs;
     private SimpleObjectProperty<Image> artworkProperty;
-
+    
     /**
      * Constructor for the Album class. 
      * Creates an album object and obtains the album artwork.
@@ -181,19 +182,17 @@ public final class Album implements Comparable<Album> {
 
             return title;
 
-        } else {
-
-            String firstWord = arr[0];
-            String theRest = arr[1];
-
-            switch (firstWord) {
-                case "A":
-                case "An":
-                case "The":
-                    return theRest;
-                default:
-                    return title;
-            }
         }
+		String firstWord = arr[0];
+		String theRest = arr[1];
+
+		switch (firstWord) {
+		    case "A":
+		    case "An":
+		    case "The":
+		        return theRest;
+		    default:
+		        return title;
+		}
     }
 }
