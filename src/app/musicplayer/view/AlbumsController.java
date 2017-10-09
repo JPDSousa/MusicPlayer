@@ -4,11 +4,16 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.ResourceBundle;
+import java.util.stream.Collectors;
+
+import org.rookit.dm.utils.PrintUtils;
+
+import com.google.common.collect.Lists;
 
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Album;
-import app.musicplayer.model.Library;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.Utils;
+import app.musicplayer.rookit.dm.MPAlbum;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.ClippedTableCell;
 import app.musicplayer.util.ControlPanelTableCell;
 import app.musicplayer.util.PlayingTableCell;
@@ -17,6 +22,7 @@ import javafx.animation.Animation;
 import javafx.animation.Interpolator;
 import javafx.animation.Transition;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -38,6 +44,7 @@ import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TableView.TableViewSelectionModel;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.Dragboard;
@@ -48,16 +55,17 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class AlbumsController implements Initializable, SubView {
 	
     @FXML private ScrollPane gridBox;
 	@FXML private FlowPane grid;
     @FXML private VBox songBox;
-    @FXML private TableView<Song> songTable;
-    @FXML private TableColumn<Song, Boolean> playingColumn;
-    @FXML private TableColumn<Song, String> titleColumn;
-    @FXML private TableColumn<Song, String> lengthColumn;
-    @FXML private TableColumn<Song, Integer> playsColumn;
+    @FXML private TableView<MPTrack> songTable;
+    @FXML private TableColumn<MPTrack, Boolean> playingColumn;
+    @FXML private TableColumn<MPTrack, String> titleColumn;
+    @FXML private TableColumn<MPTrack, String> lengthColumn;
+    @FXML private TableColumn<MPTrack, Integer> playsColumn;
     @FXML private Label artistLabel;
     @FXML private Label albumLabel;
     @FXML private Separator horizontalSeparator;
@@ -75,21 +83,21 @@ public class AlbumsController implements Initializable, SubView {
     // Initializes the value of the x-coordinate for the currently selected cell.
     private double currentCellYCoordinate;
     
-    private Song selectedSong;
+    private MPTrack selectedTrack;
+    private MusicPlayer player;
     
 	@Override
 	public void initialize(URL location, ResourceBundle resources) {
-		
+		player = MusicPlayer.getCurrent();
 		songTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-		
-		ObservableList<Album> albums = Library.getAlbums();
+		ObservableList<MPAlbum> albums = player.getLibrary().getAllAlbums();
 		Collections.sort(albums);
 
         int limit = (albums.size() < 25) ? albums.size() : 25;
 
 		for (int i = 0; i < limit; i++) {
 
-            Album album = albums.get(i);
+            MPAlbum album = albums.get(i);
             grid.getChildren().add(createCell(album, i));
 		}
 
@@ -118,7 +126,7 @@ public class AlbumsController implements Initializable, SubView {
         	}
         	
             for (int j = 25; j < albums.size(); j++) {
-            	Album album = albums.get(j);
+            	MPAlbum album = albums.get(j);
                 int k = j;
                 Platform.runLater(() -> {
                     grid.getChildren().add(createCell(album, k));
@@ -138,7 +146,7 @@ public class AlbumsController implements Initializable, SubView {
         
         // Sets the playing properties for the songs in the song table.
         songTable.setRowFactory(x -> {
-            TableRow<Song> row = new TableRow<Song>();
+            TableRow<MPTrack> row = new TableRow<MPTrack>();
 
             PseudoClass playing = PseudoClass.getPseudoClass("playing");
 
@@ -146,20 +154,20 @@ public class AlbumsController implements Initializable, SubView {
                 row.pseudoClassStateChanged(playing, newValue.booleanValue());
             };
 
-            row.itemProperty().addListener((obs, previousSong, currentSong) -> {
-            	if (previousSong != null) {
-            		previousSong.playingProperty().removeListener(changeListener);
+            row.itemProperty().addListener((obs, previousTrack, currentTrack) -> {
+            	if (previousTrack != null) {
+            		previousTrack.playingProperty().removeListener(changeListener);
             	}
-            	if (currentSong != null) {
-                    currentSong.playingProperty().addListener(changeListener);
-                    row.pseudoClassStateChanged(playing, currentSong.getPlaying());
+            	if (currentTrack != null) {
+                    currentTrack.playingProperty().addListener(changeListener);
+                    row.pseudoClassStateChanged(playing, currentTrack.isPlaying());
                 } else {
                     row.pseudoClassStateChanged(playing, false);
                 }
             });
 
             row.setOnMouseClicked(event -> {
-            	TableViewSelectionModel<Song> sm = songTable.getSelectionModel();
+            	TableViewSelectionModel<MPTrack> sm = songTable.getSelectionModel();
                 if (event.getClickCount() == 2 && !row.isEmpty()) {
                     play();
                 } else if (event.isShiftDown()) {
@@ -213,7 +221,7 @@ public class AlbumsController implements Initializable, SubView {
                     db.setContent(content);
                 	MusicPlayer.setDraggedItem(songTable.getSelectionModel().getSelectedItems());
             	} else {
-            		content.putString("Song");
+            		content.putString("Track");
                     db.setContent(content);
                 	MusicPlayer.setDraggedItem(row.getItem());
             	}
@@ -232,7 +240,7 @@ public class AlbumsController implements Initializable, SubView {
         	}
         	if (newSelection != null && songTable.getSelectionModel().getSelectedIndices().size() == 1) {
         		newSelection.setSelected(true);
-        		selectedSong = newSelection;
+        		selectedTrack = newSelection;
         	}
         });
         
@@ -246,7 +254,7 @@ public class AlbumsController implements Initializable, SubView {
         horizontalSeparator.setOnMouseDragged(new EventHandler<MouseEvent>() {
             @Override public void handle(MouseEvent e) {
             	
-            	expandedHeight = MusicPlayer.getStage().getHeight() - e.getSceneY() - 75;
+            	expandedHeight = player.getStage().getHeight() - e.getSceneY() - 75;
             	
             	if (expandedHeight > gridBox.getHeight() * 0.75) {	
                 	expandedHeight = gridBox.getHeight() * 0.75;
@@ -260,11 +268,12 @@ public class AlbumsController implements Initializable, SubView {
         });
 	}
 	
-    private VBox createCell(Album album, int index) {
+    private VBox createCell(MPAlbum album, int index) {
 
         VBox cell = new VBox();
         Label title = new Label(album.getTitle());
-        ImageView image = new ImageView(album.getArtwork());
+        final Image artwork = Utils.getAlbumArtwork(player.getLibrary(), album);
+		ImageView image = new ImageView(artwork);
         image.imageProperty().bind(album.artworkProperty());
         VBox imageBox = new VBox();
 
@@ -305,9 +314,9 @@ public class AlbumsController implements Initializable, SubView {
         		expandAlbumDetail();
         		expandAnimation.play();
         		
-        		artistLabel.setText(album.getArtist());
+        		artistLabel.setText(album.getArtistsAsString());
         		albumLabel.setText(album.getTitle());
-        		populateSongTable(cell, album);
+        		populateTrackTable(cell, album);
         		
         		// Else if album detail is expanded and opened album is reselected.
         	} else if (!isAlbumDetailCollapsed && index == currentCell) {
@@ -331,9 +340,9 @@ public class AlbumsController implements Initializable, SubView {
             	
             	// Plays load animation and populates song table with songs of newly selected album.
             	tableCollapseAnimation.setOnFinished(x -> {
-            		artistLabel.setText(album.getArtist());
+            		artistLabel.setText(album.getArtistsAsString());
             		albumLabel.setText(album.getTitle());
-            		populateSongTable(cell, album);
+            		populateTrackTable(cell, album);
             		expandAlbumDetail();
             		tableExpandAnimation.play();
             		tableCollapseAnimation.setOnFinished(y -> collapseAlbumDetail());
@@ -358,9 +367,9 @@ public class AlbumsController implements Initializable, SubView {
         		expandAlbumDetail();
         		// Plays load animation and populates song table with songs of newly selected album.
         		tableCollapseAnimation.setOnFinished(x -> {
-        			artistLabel.setText(album.getArtist());
+        			artistLabel.setText(album.getArtistsAsString());
             		albumLabel.setText(album.getTitle());
-            		populateSongTable(cell, album);
+            		populateTrackTable(cell, album);
             		expandAlbumDetail();
             		tableExpandAnimation.play();
             		tableCollapseAnimation.setOnFinished(y -> collapseAlbumDetail());
@@ -407,31 +416,33 @@ public class AlbumsController implements Initializable, SubView {
     	songBox.setVisible(false);
     }
     
-    private void populateSongTable(VBox cell, Album selectedAlbum) { 	
+    private void populateTrackTable(VBox cell, MPAlbum selectedAlbum) { 	
     	// Retrieves albums songs and stores them as an observable list.
-    	ObservableList<Song> albumSongs = FXCollections.observableArrayList(selectedAlbum.getSongs());
+    	ObservableList<MPTrack> albumTracks = player.getLibrary().fromTracks(selectedAlbum.getTracks());
     	
-        playingColumn.setCellFactory(x -> new PlayingTableCell<Song, Boolean>());
-        titleColumn.setCellFactory(x -> new ControlPanelTableCell<Song, String>());
-        lengthColumn.setCellFactory(x -> new ClippedTableCell<Song, String>());
-        playsColumn.setCellFactory(x -> new ClippedTableCell<Song, Integer>());
+        playingColumn.setCellFactory(x -> new PlayingTableCell<MPTrack, Boolean>());
+        titleColumn.setCellFactory(x -> new ControlPanelTableCell<MPTrack, String>());
+        lengthColumn.setCellFactory(x -> new ClippedTableCell<MPTrack, String>());
+        playsColumn.setCellFactory(x -> new ClippedTableCell<MPTrack, Integer>());
 
         // Sets each column item.
-        playingColumn.setCellValueFactory(new PropertyValueFactory<Song, Boolean>("playing"));
-        titleColumn.setCellValueFactory(new PropertyValueFactory<Song, String>("title"));
-        lengthColumn.setCellValueFactory(new PropertyValueFactory<Song, String>("length"));
-        playsColumn.setCellValueFactory(new PropertyValueFactory<Song, Integer>("playCount"));
+        // TODO reflectiveness here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        playingColumn.setCellValueFactory(new PropertyValueFactory<MPTrack, Boolean>("playing"));
+        titleColumn.setCellValueFactory(new PropertyValueFactory<MPTrack, String>("title"));
+        lengthColumn.setCellValueFactory(new PropertyValueFactory<MPTrack, String>("length"));
+        playsColumn.setCellValueFactory(new PropertyValueFactory<MPTrack, Integer>("playCount"));
         
         // Adds songs to table.
-        songTable.setItems(albumSongs);
-        double height = (albumSongs.size() + 1) * 50 + 2;
+        songTable.setItems(albumTracks);
+        double height = (albumTracks.size() + 1) * 50 + 2;
         Animation songTableLoadAnimation = new Transition() {
         	{
         		setCycleDuration(Duration.millis(250));
                 setInterpolator(Interpolator.EASE_BOTH);
         	}
         	
-        	protected void interpolate(double frac) {
+        	@Override
+			protected void interpolate(double frac) {
         		songTable.setMinHeight(frac * height);
                 songTable.setPrefHeight(frac * height);
         	}
@@ -442,16 +453,16 @@ public class AlbumsController implements Initializable, SubView {
     @Override
     public void play() {
     	
-    	Song song = selectedSong;
-        ObservableList<Song> songList = songTable.getItems();
-        if (MusicPlayer.isShuffleActive()) {
+    	MPTrack song = selectedTrack;
+        ObservableList<MPTrack> songList = songTable.getItems();
+        if (player.isShuffleActive()) {
         	Collections.shuffle(songList);
         	songList.remove(song);
         	songList.add(0, song);
         }
-        MusicPlayer.setNowPlayingList(songList);
-        MusicPlayer.setNowPlaying(song);
-        MusicPlayer.play();
+        player.setNowPlayingList(songList);
+        player.setNowPlaying(song);
+        player.play();
     }
     
     @Override
@@ -482,7 +493,8 @@ public class AlbumsController implements Initializable, SubView {
             {
                 setCycleDuration(Duration.millis(500));
             }
-            protected void interpolate(double frac) {
+            @Override
+			protected void interpolate(double frac) {
                 double vValue = startVvalue + ((finalVvalue - startVvalue) * frac);
                 gridBox.setVvalue(vValue);
             }
@@ -497,24 +509,23 @@ public class AlbumsController implements Initializable, SubView {
 
         if (arr.length < 2) {
             return title;
-        } else {
-
-            String firstWord = arr[0];
-            String theRest = arr[1];
-
-            switch (firstWord) {
-                case "A":
-                case "An":
-                case "The":
-                    return theRest;
-                default:
-                    return title;
-            }
         }
+		String firstWord = arr[0];
+		String theRest = arr[1];
+
+		switch (firstWord) {
+		    case "A":
+		    case "An":
+		    case "The":
+		        return theRest;
+		    default:
+		        return title;
+		}
     }
     
-    public Song getSelectedSong() {
-    	return selectedSong;
+    @Override
+	public MPTrack getSelectedSong() {
+    	return selectedTrack;
     }
     
     // Animation to display song table when an album is clicked and the song table is collapsed.
@@ -522,7 +533,8 @@ public class AlbumsController implements Initializable, SubView {
         {
             setCycleDuration(Duration.millis(250));
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
         	double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (frac);
             songBox.setPrefHeight(curHeight);
             songBox.setOpacity(frac);
@@ -535,7 +547,8 @@ public class AlbumsController implements Initializable, SubView {
             setCycleDuration(Duration.millis(250));
             setOnFinished(x -> collapseAlbumDetail());
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
         	double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (1.0 - frac);
             songBox.setPrefHeight(curHeight);
             songBox.setOpacity(1.0 - frac);
@@ -549,7 +562,8 @@ public class AlbumsController implements Initializable, SubView {
             setCycleDuration(Duration.millis(250));
             setOnFinished(x -> collapseAlbumDetail());
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
         	double curLocation = collapsedHeight + (expandedHeight - collapsedHeight) * (frac);
             artistLabel.setTranslateY(curLocation);
             albumLabel.setTranslateY(curLocation);
@@ -566,7 +580,8 @@ public class AlbumsController implements Initializable, SubView {
         {
             setCycleDuration(Duration.millis(250));
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
         	double curLocation = collapsedHeight + (expandedHeight - collapsedHeight) * (1.0 - frac);
         	artistLabel.setTranslateY(curLocation);
             albumLabel.setTranslateY(curLocation);

@@ -1,11 +1,11 @@
 package app.musicplayer.util;
 
-import org.rookit.dm.track.Track;
+import app.musicplayer.rookit.dm.MPTrack;
 
 @SuppressWarnings("javadoc")
 public interface SubView {
 
 	void scroll(char letter);
 	void play();
-	Track getSelectedSong();
+	MPTrack getSelectedSong();
 }
