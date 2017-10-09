@@ -20,6 +20,7 @@ import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
 
+import org.rookit.mongodb.DBManager;
 import org.smof.gridfs.SmofGridRef;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -34,6 +35,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.scene.image.Image;
 
+@SuppressWarnings("javadoc")
 public final class Song implements Comparable<Song> {
 
     private int id;
@@ -49,6 +51,7 @@ public final class Song implements Comparable<Song> {
     private SmofGridRef location;
     private SimpleBooleanProperty playing;
     private SimpleBooleanProperty selected;
+    private final DBManager database;
 
     /**
      * Constructor for the song class.
@@ -65,7 +68,8 @@ public final class Song implements Comparable<Song> {
      * @param location
      */
     public Song(int id, String title, String artist, String album, Duration length,
-                int trackNumber, int discNumber, int playCount, LocalDateTime playDate, SmofGridRef location) {
+                int trackNumber, int discNumber, int playCount, LocalDateTime playDate, 
+                SmofGridRef location, DBManager database) {
 
         if (album == null) {
             album = "Unknown Album";
@@ -75,6 +79,7 @@ public final class Song implements Comparable<Song> {
             artist = "Unknown Artist";
         }
 
+        this.database = database;
         this.id = id;
         this.title = new SimpleStringProperty(title);
         this.artist = new SimpleStringProperty(artist);
@@ -116,7 +121,8 @@ public final class Song implements Comparable<Song> {
     }
 
     public Image getArtwork() {
-        return Library.getAlbum(this.album.get()).getArtwork();
+        final Album album = Library.getDefault().getAlbum(this.album.get());
+		return album != null ? album.getArtwork() : null;
     }
 
     public StringProperty albumProperty() {
@@ -161,7 +167,7 @@ public final class Song implements Comparable<Song> {
     		try {
     			path = Paths.get("data", Integer.toString(getId()) + ".mp3");
     			if(!Files.exists(path)) {
-        	    	Files.copy(Library.DB.stream(location), path);
+        	    	Files.copy(database.stream(location), path);
     			}
     	    	return path.toUri().toString();
     		} catch (IOException e) {
@@ -249,9 +255,8 @@ public final class Song implements Comparable<Song> {
 
         if (discComparison != 0) {
             return discComparison;
-        } else {
-            return Integer.compare(this.trackNumber, other.trackNumber);
         }
+		return Integer.compare(this.trackNumber, other.trackNumber);
     }
 
 	public boolean hasContent() {

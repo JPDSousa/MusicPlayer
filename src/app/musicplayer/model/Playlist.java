@@ -25,6 +25,7 @@ import app.musicplayer.util.Resources;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
+@SuppressWarnings("javadoc")
 public class Playlist {
 
     private int id;
