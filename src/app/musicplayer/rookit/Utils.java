@@ -4,7 +4,6 @@ import java.time.Duration;
 
 import org.rookit.dm.album.Album;
 import org.rookit.dm.track.Track;
-import org.rookit.mongodb.DBManager;
 
 import javafx.scene.image.Image;
 
@@ -18,7 +17,7 @@ public final class Utils {
 		return duration.toMinutes() + ":" + (seconds < 10 ? "0" + seconds : seconds);
 	}
 
-	public static Image getAlbumArtwork(DBManager library, Album album) {
+	public static Image getAlbumArtwork(RookitLibrary library, Album album) {
 		return new Image(library.stream(album.getCover()));
 	}
 

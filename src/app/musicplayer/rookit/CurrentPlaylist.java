@@ -9,29 +9,29 @@ import java.util.List;
 import java.util.Random;
 
 import org.apache.commons.collections4.list.SetUniqueList;
-import org.rookit.dm.track.Track;
-import org.rookit.mongodb.DBManager;
 
 import com.google.common.collect.Lists;
 
+import app.musicplayer.rookit.dm.MPTrack;
+
 @SuppressWarnings("javadoc")
-public class CurrentPlaylist implements Iterator<Track> {
+public class CurrentPlaylist implements Iterator<MPTrack> {
 	
-	private final List<Track> playlist;
-	private final DBManager database;
+	private final List<MPTrack> playlist;
+	private final RookitLibrary library;
 	private int index;
 	private boolean isLoopActive;
 	private boolean isShuffleActive;
 	
-	public CurrentPlaylist(DBManager database) {
+	public CurrentPlaylist(RookitLibrary library) {
 		playlist = SetUniqueList.setUniqueList(Lists.newArrayList());
-		this.database = database;
+		this.library = library;
 		index = 0;
 		isLoopActive = false;
 		isShuffleActive = false;
 	}
 	
-	public Iterable<Track> getPlaylist() {
+	public Iterable<MPTrack> getPlaylist() {
 		return playlist;
 	}
 
@@ -51,27 +51,27 @@ public class CurrentPlaylist implements Iterator<Track> {
 		this.isLoopActive = isLoopActive;
 	}
 
-	public Track getCurrent() {
+	public MPTrack getCurrent() {
 		return playlist.get(index);
 	}
 	
 	public String getCurrentURI() {
-		return downloadToFile(database, getCurrent()).toUri().toString();
+		return downloadToFile(library, getCurrent()).toUri().toString();
 	}
 	
-	public void add(Track track) {
+	public void add(MPTrack track) {
 		playlist.add(track);
 	}
 	
-	public void addAll(Iterable<Track> tracks) {
+	public void addAll(Iterable<MPTrack> tracks) {
 		tracks.forEach(playlist::add);
 	}
 	
-	public boolean contains(Track track) {
+	public boolean contains(MPTrack track) {
 		return playlist.contains(track);
 	}
 	
-	public String skipTo(Track track) {
+	public String skipTo(MPTrack track) {
 		final int index = playlist.indexOf(track);
 		if (index > 0) {
             this.index = index;
@@ -80,13 +80,13 @@ public class CurrentPlaylist implements Iterator<Track> {
 		return null;
 	}
 
-	private Path downloadToFile(DBManager database, Track track) {
+	private Path downloadToFile(RookitLibrary library, MPTrack track) {
 		final Path path;
     	if(track.getPath() != null) {
     		try {
     			path = Paths.get("data", track.getIdAsString() + ".mp3");
     			if(!Files.exists(path)) {
-        	    	Files.copy(database.stream(track.getPath()), path);
+        	    	Files.copy(library.stream(track.getPath()), path);
     			}
     	    	return path;
     		} catch (IOException e) {
@@ -111,7 +111,7 @@ public class CurrentPlaylist implements Iterator<Track> {
 	}
 
 	@Override
-	public Track next() {
+	public MPTrack next() {
 		if(isShuffleActive) {
 			final Random random = new Random();
 			index = random.nextInt(playlist.size());
@@ -128,15 +128,16 @@ public class CurrentPlaylist implements Iterator<Track> {
 		return index > 0;
 	}
 	
-	public Track previous() {
+	public MPTrack previous() {
 		return playlist.get(--index);
 	}
 
 	public void markCurrentAsPlayed(int secondsPlayed) {
-		final Track current = getCurrent();
+		final MPTrack current = getCurrent();
 		long length = current.getDuration();
 		if ((100 * secondsPlayed / length) > 50) {
 			current.play();
 		}
+		current.setPlaying(false);
 	}
 }
