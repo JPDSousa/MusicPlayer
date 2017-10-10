@@ -1,8 +1,7 @@
 package app.musicplayer.model;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -21,6 +20,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.Resources;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -30,7 +30,7 @@ public class Playlist {
 
     private int id;
     private String title;
-    private ArrayList<Song> songs;
+    private List<MPTrack> songs;
     private String placeholder =
             "Add songs to this playlist by dragging items to the sidebar\n" +
             "or by clicking the Add to Playlist button";
@@ -43,7 +43,7 @@ public class Playlist {
      * @param title
      * @param songs
      */
-    public Playlist(int id, String title, ArrayList<Song> songs) {
+    public Playlist(int id, String title, List<MPTrack> songs) {
         this.id = id;
         this.title = title;
         this.songs = songs;
@@ -68,11 +68,11 @@ public class Playlist {
         return this.placeholder;
     }
 
-    public ObservableList<Song> getSongs() {
+    public ObservableList<MPTrack> getSongs() {
         return FXCollections.observableArrayList(this.songs);
     }
     
-    public void addSong(Song song) {
+    public void addSong(MPTrack song) {
     	if (!songs.contains(song)) {
 
     		songs.add(song);
@@ -89,7 +89,7 @@ public class Playlist {
     			Node playlist = ((NodeList) expr.evaluate(doc, XPathConstants.NODESET)).item(0);
 
     			Element songId = doc.createElement("songId");
-    			songId.setTextContent(Integer.toString(song.getId()));
+    			songId.setTextContent(song.getIdAsString());
     			playlist.appendChild(songId);
 
     			TransformerFactory transformerFactory = TransformerFactory.newInstance();
@@ -107,16 +107,10 @@ public class Playlist {
     	}
     }
     
-    public void removeSong(int songId) {
+    public void removeSong(MPTrack track) {
       // Loops through the songs in the play list.
       // When the song with an ID matching the selectedSongId is found, it is deleted.
-      Iterator<Song> iterator = songs.iterator();
-      while (iterator.hasNext()) {
-          Song song = iterator.next();
-          if (song.getId() == songId) {
-          	iterator.remove();
-          }
-      }
+      songs.remove(track);
     }
 
     @Override

@@ -2,21 +2,20 @@ package app.musicplayer.model;
 
 import java.util.List;
 
-import org.rookit.dm.track.Track;
-
 import com.google.common.collect.Lists;
 
-import org.rookit.dm.album.Album;
-import org.rookit.dm.artist.Artist;
-import org.rookit.dm.genre.Genre;
+import app.musicplayer.rookit.dm.MPAlbum;
+import app.musicplayer.rookit.dm.MPArtist;
+import app.musicplayer.rookit.dm.MPGenre;
+import app.musicplayer.rookit.dm.MPTrack;
 
 @SuppressWarnings("javadoc")
 public class SearchResult {
 
-    private final List<Track> songResults;
-    private final List<Album> albumResults;
-    private final List<Artist> artistResults;
-    private final List<Genre> genreResults;
+    private final List<MPTrack> songResults;
+    private final List<MPAlbum> albumResults;
+    private final List<MPArtist> artistResults;
+    private final List<MPGenre> genreResults;
 
     public SearchResult() {
         this.songResults = Lists.newArrayList();
@@ -25,35 +24,35 @@ public class SearchResult {
         this.genreResults = Lists.newArrayList();
     }
     
-    public void addResult(Track track) {
+    public void addResult(MPTrack track) {
     	songResults.add(track);
     }
     
-	public List<Track> getSongResults() {
+	public List<MPTrack> getSongResults() {
 		return songResults;
 	}
 	
-	public void addResult(Album album) {
+	public void addResult(MPAlbum album) {
 		albumResults.add(album);
 	}
 
-	public List<Album> getAlbumResults() {
+	public List<MPAlbum> getAlbumResults() {
 		return albumResults;
 	}
 	
-	public void addResult(Artist artist) {
+	public void addResult(MPArtist artist) {
 		artistResults.add(artist);
 	}
 
-	public List<Artist> getArtistResults() {
+	public List<MPArtist> getArtistResults() {
 		return artistResults;
 	}
 	
-	public void addResult(Genre genre) {
+	public void addResult(MPGenre genre) {
 		genreResults.add(genre);
 	}
 
-	public List<Genre> getGenreResults() {
+	public List<MPGenre> getGenreResults() {
 		return genreResults;
 	}
 
