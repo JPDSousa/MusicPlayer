@@ -5,10 +5,11 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.stream.Collectors;
 
-import org.rookit.dm.track.Track;
 import org.rookit.mongodb.DBManager;
 
 import app.musicplayer.rookit.CurrentPlaylist;
+import app.musicplayer.rookit.RookitLibrary;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.Resources;
 import app.musicplayer.view.MainController;
 import app.musicplayer.view.NowPlayingController;
@@ -47,15 +48,15 @@ public class MusicPlayer extends Application {
 		Application.launch(MusicPlayer.class);
 	}
 
-	private final DBManager library;
+	private final RookitLibrary library;
 	private final CurrentPlaylist nowPlaying;
 
 	public MusicPlayer() {
-		this.library = DBManager.open("localhost", 27039, "rookit");
+		this.library = RookitLibrary.create(DBManager.open("localhost", 27039, "rookit"));
 		nowPlaying = new CurrentPlaylist(library);
 	}
 	
-	public DBManager getLibrary() {
+	public RookitLibrary getLibrary() {
 		return library;
 	}
 
@@ -92,7 +93,7 @@ public class MusicPlayer extends Application {
 		}
 
 		Thread thread = new Thread(() -> {
-			nowPlaying.addAll(library.getTracks().stream()
+			nowPlaying.addAll(library.streamTracks()
 					.filter(track -> track.getPath() != null)
 					.limit(50)
 					.collect(Collectors.toList()));
@@ -294,16 +295,16 @@ public class MusicPlayer extends Application {
 		return nowPlaying;
 	}
 
-	public void addSongToNowPlayingList(Track song) {
+	public void addSongToNowPlayingList(MPTrack song) {
 		nowPlaying.add(song);
 	}
 
-	public void setNowPlayingList(List<Track> list) {
+	public void setNowPlayingList(List<MPTrack> list) {
 		nowPlaying.clear();
 		nowPlaying.addAll(list);
 	}
 
-	public void setNowPlaying(Track song) {
+	public void setNowPlaying(MPTrack song) {
 		nowPlaying.markCurrentAsPlayed(secondsPlayed);
 		final String uri = nowPlaying.skipTo(song);
 		if(uri != null) {
@@ -324,10 +325,11 @@ public class MusicPlayer extends Application {
 			mainController.updateNowPlayingButton();
 			mainController.initializeTimeSlider();
 			mainController.initializeTimeLabels();
+			song.setPlaying(true);
 		}
 	}
 
-	public Track getNowPlaying() {
+	public MPTrack getNowPlaying() {
 		return nowPlaying.getCurrent();
 	}
 
