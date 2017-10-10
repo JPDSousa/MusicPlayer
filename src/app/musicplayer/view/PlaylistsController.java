@@ -6,11 +6,8 @@ import java.util.Collections;
 import java.util.ResourceBundle;
 
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Library;
-import app.musicplayer.model.MostPlayedPlaylist;
 import app.musicplayer.model.Playlist;
-import app.musicplayer.model.RecentlyPlayedPlaylist;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.ClippedTableCell;
 import app.musicplayer.util.ControlPanelTableCell;
 import app.musicplayer.util.PlayingTableCell;
@@ -52,300 +49,302 @@ import javafx.util.Duration;
 @SuppressWarnings("javadoc")
 public class PlaylistsController implements Initializable, SubView {
 
-    @FXML private TableView<Song> tableView;
-    @FXML private TableColumn<Song, Boolean> playingColumn;
-    @FXML private TableColumn<Song, String> titleColumn;
-    @FXML private TableColumn<Song, String> artistColumn;
-    @FXML private TableColumn<Song, String> albumColumn;
-    @FXML private TableColumn<Song, String> lengthColumn;
-    @FXML private TableColumn<Song, Integer> playsColumn;
-    
-    @FXML private Label playlistTitleLabel;
-    @FXML private HBox controlBox;
-    @FXML private Pane deleteButton;
+	@FXML private TableView<MPTrack> tableView;
+	@FXML private TableColumn<MPTrack, Boolean> playingColumn;
+	@FXML private TableColumn<MPTrack, String> titleColumn;
+	@FXML private TableColumn<MPTrack, String> artistColumn;
+	@FXML private TableColumn<MPTrack, String> albumColumn;
+	@FXML private TableColumn<MPTrack, String> lengthColumn;
+	@FXML private TableColumn<MPTrack, Integer> playsColumn;
 
-    private Playlist selectedPlaylist;
-    private Song selectedSong;
-    
-    // Used to store the individual playlist boxes from the playlistBox. 
-    private HBox cell;
-    
-    private Animation deletePlaylistAnimation = new Transition() {
-        {
-            setCycleDuration(Duration.millis(500));
-            setInterpolator(Interpolator.EASE_BOTH);
-        }
-        @Override
+	@FXML private Label playlistTitleLabel;
+	@FXML private HBox controlBox;
+	@FXML private Pane deleteButton;
+
+	private Playlist selectedPlaylist;
+	private MPTrack selectedSong;
+	private MusicPlayer player;
+
+	// Used to store the individual playlist boxes from the playlistBox. 
+	private HBox cell;
+
+	private Animation deletePlaylistAnimation = new Transition() {
+		{
+			setCycleDuration(Duration.millis(500));
+			setInterpolator(Interpolator.EASE_BOTH);
+		}
+		@Override
 		protected void interpolate(double frac) {        	    		
-            if (frac < 0.5) {
-                cell.setOpacity(1.0 - frac * 2);
-            } else {
-                cell.setPrefHeight(cell.getHeight() - (frac - 0.5) * 10);
-                cell.setOpacity(0);
-            }
-        }
-    };
+			if (frac < 0.5) {
+				cell.setOpacity(1.0 - frac * 2);
+			} else {
+				cell.setPrefHeight(cell.getHeight() - (frac - 0.5) * 10);
+				cell.setOpacity(0);
+			}
+		}
+	};
 
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+	@Override
+	public void initialize(URL location, ResourceBundle resources) {
+		player = MusicPlayer.getCurrent();
+		tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-        titleColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
-        artistColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
-        albumColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
-        lengthColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.11));
-        playsColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.11));
+		titleColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
+		artistColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
+		albumColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
+		lengthColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.11));
+		playsColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.11));
 
-        playingColumn.setCellFactory(x -> new PlayingTableCell<>());
-        titleColumn.setCellFactory(x -> new ControlPanelTableCell<>());
-        artistColumn.setCellFactory(x -> new ClippedTableCell<>());
-        albumColumn.setCellFactory(x -> new ClippedTableCell<>());
-        lengthColumn.setCellFactory(x -> new ClippedTableCell<>());
-        playsColumn.setCellFactory(x -> new ClippedTableCell<>());
+		playingColumn.setCellFactory(x -> new PlayingTableCell<>());
+		titleColumn.setCellFactory(x -> new ControlPanelTableCell<>());
+		artistColumn.setCellFactory(x -> new ClippedTableCell<>());
+		albumColumn.setCellFactory(x -> new ClippedTableCell<>());
+		lengthColumn.setCellFactory(x -> new ClippedTableCell<>());
+		playsColumn.setCellFactory(x -> new ClippedTableCell<>());
 
-        playingColumn.setCellValueFactory(new PropertyValueFactory<>("playing"));
-        titleColumn.setCellValueFactory(new PropertyValueFactory<>("title"));
-        artistColumn.setCellValueFactory(new PropertyValueFactory<>("artist"));
-        albumColumn.setCellValueFactory(new PropertyValueFactory<>("album"));
-        lengthColumn.setCellValueFactory(new PropertyValueFactory<>("length"));
-        playsColumn.setCellValueFactory(new PropertyValueFactory<>("playCount"));
-        
-        tableView.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
-            tableView.requestFocus();
-            event.consume();
-        });
+		playingColumn.setCellValueFactory(new PropertyValueFactory<>("playing"));
+		titleColumn.setCellValueFactory(new PropertyValueFactory<>("title"));
+		artistColumn.setCellValueFactory(new PropertyValueFactory<>("artist"));
+		albumColumn.setCellValueFactory(new PropertyValueFactory<>("album"));
+		lengthColumn.setCellValueFactory(new PropertyValueFactory<>("length"));
+		playsColumn.setCellValueFactory(new PropertyValueFactory<>("playCount"));
 
-        tableView.setRowFactory(x -> {
+		tableView.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+			tableView.requestFocus();
+			event.consume();
+		});
 
-            TableRow<Song> row = new TableRow<>();
+		tableView.setRowFactory(x -> {
 
-            PseudoClass playing = PseudoClass.getPseudoClass("playing");
+			TableRow<MPTrack> row = new TableRow<>();
 
-            ChangeListener<Boolean> changeListener = (obs, oldValue, newValue) ->
-                    row.pseudoClassStateChanged(playing, newValue);
+			PseudoClass playing = PseudoClass.getPseudoClass("playing");
 
-            row.itemProperty().addListener((obs, previousSong, currentSong) -> {
-                if (previousSong != null) {
-                    previousSong.playingProperty().removeListener(changeListener);
-                }
-                if (currentSong != null) {
-                    currentSong.playingProperty().addListener(changeListener);
-                    row.pseudoClassStateChanged(playing, currentSong.getPlaying());
-                } else {
-                    row.pseudoClassStateChanged(playing, false);
-                }
-            });
+			ChangeListener<Boolean> changeListener = (obs, oldValue, newValue) ->
+			row.pseudoClassStateChanged(playing, newValue);
 
-            row.setOnMouseClicked(event -> {            	
-                TableViewSelectionModel<Song> sm = tableView.getSelectionModel();
-                if (event.getClickCount() == 2 && !row.isEmpty()) {
-                    play();
-                } else if (event.isShiftDown()) {
-                    ArrayList<Integer> indices = new ArrayList<>(sm.getSelectedIndices());
-                    if (indices.size() < 1) {
-                        if (indices.contains(row.getIndex())) {
-                            sm.clearSelection(row.getIndex());
-                        } else {
-                            sm.select(row.getItem());
-                        }
-                    } else {
-                        sm.clearSelection();
-                        indices.sort((first, second) -> first.compareTo(second));
-                        int max = indices.get(indices.size() - 1);
-                        int min = indices.get(0);
-                        if (min < row.getIndex()) {
-                            for (int i = min; i <= row.getIndex(); i++) {
-                                sm.select(i);
-                            }
-                        } else {
-                            for (int i = row.getIndex(); i <= max; i++) {
-                                sm.select(i);
-                            }
-                        }
-                    }
+			row.itemProperty().addListener((obs, previousSong, currentSong) -> {
+				if (previousSong != null) {
+					previousSong.playingProperty().removeListener(changeListener);
+				}
+				if (currentSong != null) {
+					currentSong.playingProperty().addListener(changeListener);
+					row.pseudoClassStateChanged(playing, currentSong.isPlaying());
+				} else {
+					row.pseudoClassStateChanged(playing, false);
+				}
+			});
 
-                } else if (event.isControlDown()) {
-                    if (sm.getSelectedIndices().contains(row.getIndex())) {
-                        sm.clearSelection(row.getIndex());
-                    } else {
-                        sm.select(row.getItem());
-                    }
-                } else {
-                    if (sm.getSelectedIndices().size() > 1) {
-                        sm.clearSelection();
-                        sm.select(row.getItem());
-                    } else if (sm.getSelectedIndices().contains(row.getIndex())) {
-                        sm.clearSelection();
-                    } else {
-                        sm.clearSelection();
-                        sm.select(row.getItem());
-                    }
-                }
-            });
-            
-            row.setOnDragDetected(event -> {
-                Dragboard db = row.startDragAndDrop(TransferMode.ANY);
-                ClipboardContent content = new ClipboardContent();
-                if (tableView.getSelectionModel().getSelectedIndices().size() > 1) {
-                    content.putString("List");
-                    db.setContent(content);
-                    MusicPlayer.setDraggedItem(tableView.getSelectionModel().getSelectedItems());
-                } else {
-                    content.putString("Song");
-                    db.setContent(content);
-                    MusicPlayer.setDraggedItem(row.getItem());
-                }
-                ImageView image = new ImageView(row.snapshot(null, null));
-                Rectangle2D rectangle = new Rectangle2D(0, 0, 250, 50);
-                image.setViewport(rectangle);
-                db.setDragView(image.snapshot(null, null), 125, 25);
-                event.consume();
-            });
+			row.setOnMouseClicked(event -> {            	
+				TableViewSelectionModel<MPTrack> sm = tableView.getSelectionModel();
+				if (event.getClickCount() == 2 && !row.isEmpty()) {
+					play();
+				} else if (event.isShiftDown()) {
+					ArrayList<Integer> indices = new ArrayList<>(sm.getSelectedIndices());
+					if (indices.size() < 1) {
+						if (indices.contains(row.getIndex())) {
+							sm.clearSelection(row.getIndex());
+						} else {
+							sm.select(row.getItem());
+						}
+					} else {
+						sm.clearSelection();
+						indices.sort((first, second) -> first.compareTo(second));
+						int max = indices.get(indices.size() - 1);
+						int min = indices.get(0);
+						if (min < row.getIndex()) {
+							for (int i = min; i <= row.getIndex(); i++) {
+								sm.select(i);
+							}
+						} else {
+							for (int i = row.getIndex(); i <= max; i++) {
+								sm.select(i);
+							}
+						}
+					}
 
-            return row;
-        });
-        
-        tableView.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
-            if (oldSelection != null) {
-                oldSelection.setSelected(false);
-            }
-            if (newSelection != null && tableView.getSelectionModel().getSelectedIndices().size() == 1) {
-                newSelection.setSelected(true);
-                selectedSong = newSelection;
-            }
-        });
-        
-        // Plays selected song when enter key is pressed.
-        tableView.setOnKeyPressed(event -> {
-            if (event.getCode().equals(KeyCode.ENTER)) {
-                play();
-            }
-        });
+				} else if (event.isControlDown()) {
+					if (sm.getSelectedIndices().contains(row.getIndex())) {
+						sm.clearSelection(row.getIndex());
+					} else {
+						sm.select(row.getItem());
+					}
+				} else {
+					if (sm.getSelectedIndices().size() > 1) {
+						sm.clearSelection();
+						sm.select(row.getItem());
+					} else if (sm.getSelectedIndices().contains(row.getIndex())) {
+						sm.clearSelection();
+					} else {
+						sm.clearSelection();
+						sm.select(row.getItem());
+					}
+				}
+			});
 
-        ObservableList<Node> playlistBoxChildren = MusicPlayer.getMainController().getPlaylistBox().getChildren();
+			row.setOnDragDetected(event -> {
+				Dragboard db = row.startDragAndDrop(TransferMode.ANY);
+				ClipboardContent content = new ClipboardContent();
+				if (tableView.getSelectionModel().getSelectedIndices().size() > 1) {
+					content.putString("List");
+					db.setContent(content);
+					MusicPlayer.setDraggedItem(tableView.getSelectionModel().getSelectedItems());
+				} else {
+					content.putString("Song");
+					db.setContent(content);
+					MusicPlayer.setDraggedItem(row.getItem());
+				}
+				ImageView image = new ImageView(row.snapshot(null, null));
+				Rectangle2D rectangle = new Rectangle2D(0, 0, 250, 50);
+				image.setViewport(rectangle);
+				db.setDragView(image.snapshot(null, null), 125, 25);
+				event.consume();
+			});
 
-        deletePlaylistAnimation.setOnFinished(event -> {
-            playlistBoxChildren.remove(cell);
-        });
-    }
-    
-    @Override
-    public void play() {
-        Song song = selectedSong;
-        ObservableList<Song> songs = selectedPlaylist.getSongs();
-        if (MusicPlayer.isShuffleActive()) {
-            Collections.shuffle(songs);
-            songs.remove(song);
-            songs.add(0, song);
-        }
-        MusicPlayer.setNowPlayingList(songs);
-        MusicPlayer.setNowPlaying(song);
-        MusicPlayer.play();
-    }
+			return row;
+		});
 
-    void selectPlaylist(Playlist playlist) {
-        // Displays the delete button only if the user has not selected one of the default playlists.
-        if (playlist instanceof MostPlayedPlaylist || playlist instanceof RecentlyPlayedPlaylist) {
-            deleteButton.setVisible(false);
-        }
+		tableView.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
+			if (oldSelection != null) {
+				oldSelection.setSelected(false);
+			}
+			if (newSelection != null && tableView.getSelectionModel().getSelectedIndices().size() == 1) {
+				newSelection.setSelected(true);
+				selectedSong = newSelection;
+			}
+		});
 
-        // Sets the text on the play list title label.
-        playlistTitleLabel.setText(playlist.getTitle());
+		// Plays selected song when enter key is pressed.
+		tableView.setOnKeyPressed(event -> {
+			if (event.getCode().equals(KeyCode.ENTER)) {
+				play();
+			}
+		});
 
-        // Updates the currently selected play list.
-        selectedPlaylist = playlist;
+		ObservableList<Node> playlistBoxChildren = MusicPlayer.getMainController().getPlaylistBox().getChildren();
 
-        // Retrieves the songs in the selected play list.
-        ObservableList<Song> songs = playlist.getSongs();
-        
-        // Clears the song table.
-        tableView.getSelectionModel().clearSelection();
-        
-        // Populates the song table with the playlist's songs.
-        tableView.setItems(songs);
+		deletePlaylistAnimation.setOnFinished(event -> {
+			playlistBoxChildren.remove(cell);
+		});
+	}
 
-        Label message = new Label(selectedPlaylist.getPlaceholder());
-        message.setTextAlignment(TextAlignment.CENTER);
+	@Override
+	public void play() {
+		MPTrack song = selectedSong;
+		ObservableList<MPTrack> songs = selectedPlaylist.getSongs();
+		if (player.isShuffleActive()) {
+			Collections.shuffle(songs);
+			songs.remove(song);
+			songs.add(0, song);
+		}
+		player.setNowPlayingList(songs);
+		player.setNowPlaying(song);
+		player.play();
+	}
 
-        ImageView image = new ImageView();
-        image.setFitHeight(150);
-        image.setFitWidth(150);
-        image.setImage(new Image(Resources.IMG + "playlistsIcon.png"));
+	void selectPlaylist(Playlist playlist) {
+		// Displays the delete button only if the user has not selected one of the default playlists.
+//		if (playlist instanceof MostPlayedPlaylist || playlist instanceof RecentlyPlayedPlaylist) {
+//			deleteButton.setVisible(false);
+//		}
 
-        VBox placeholder = new VBox();
-        placeholder.setAlignment(Pos.CENTER);
-        placeholder.getChildren().addAll(image, message);
-        VBox.setMargin(image, new Insets(0, 0, 50, 0));
+		// Sets the text on the play list title label.
+		playlistTitleLabel.setText(playlist.getTitle());
 
-        tableView.setPlaceholder(placeholder);
-    }
-    
-    @Override
-    public void scroll(char letter) {
-    	// nothing to be done
-    }
+		// Updates the currently selected play list.
+		selectedPlaylist = playlist;
 
-    @Override
-    public Song getSelectedSong() {
-        return selectedSong;
-    }
-    
-    Playlist getSelectedPlaylist() {
-        return selectedPlaylist;
-    }
-    
-    void deleteSelectedRow() {
-        // Retrieves the table view items and the selected item.
-        ObservableList<Song> allSongs, selectedSong;
-        allSongs = tableView.getItems();
-        selectedSong = tableView.getSelectionModel().getSelectedItems();
+		// Retrieves the songs in the selected play list.
+		ObservableList<MPTrack> songs = playlist.getSongs();
 
-        // Removes the selected item from the table view.
-        selectedSong.forEach(allSongs::remove);
-    }
-    
-    @FXML
-    private void playPlaylist() {
-        ObservableList<Song> songs = selectedPlaylist.getSongs();
-        MusicPlayer.setNowPlayingList(songs);
-        MusicPlayer.setNowPlaying(songs.get(0));
-        MusicPlayer.play();
-    }
-    
-    @FXML
-    private void deletePlaylist() {
-        if (!deletePlaylistAnimation.getStatus().equals(Status.RUNNING)) {
-            // Gets the title of the selected playlist to compare it against the labels of the playlist boxes.
-            String selectedPlaylistTitle = selectedPlaylist.getTitle();
+		// Clears the song table.
+		tableView.getSelectionModel().clearSelection();
 
-            // Gets the playlist box children to loop through each to find the correct child to remove.
-            ObservableList<Node> playlistBoxChildren = MusicPlayer.getMainController().getPlaylistBox().getChildren();
+		// Populates the song table with the playlist's songs.
+		tableView.setItems(songs);
 
-            // Initialize i at 1 to ignore the new playlist cell.
-            for (int i = 1; i <= playlistBoxChildren.size(); i++) {
-                // Gets each cell in the playlist box and retrieves the cell's label.
-                cell = (HBox) playlistBoxChildren.get(i);
-                Label cellLabel = (Label) cell.getChildren().get(1);
+		Label message = new Label(selectedPlaylist.getPlaceholder());
+		message.setTextAlignment(TextAlignment.CENTER);
 
-                // Ends the process if the cell's label matches the selected playlist's title.
-                if (cellLabel.getText().equals(selectedPlaylistTitle)) {
-                    break;
-                }
-            }
+		ImageView image = new ImageView();
+		image.setFitHeight(150);
+		image.setFitWidth(150);
+		image.setImage(new Image(Resources.IMG + "playlistsIcon.png"));
 
-            deletePlaylistAnimation.play();
+		VBox placeholder = new VBox();
+		placeholder.setAlignment(Pos.CENTER);
+		placeholder.getChildren().addAll(image, message);
+		VBox.setMargin(image, new Insets(0, 0, 50, 0));
 
-            // Deletes the play list from the xml file.
-//            XMLEditor.deletePlaylistFromXML(selectedPlaylist.getId());
+		tableView.setPlaceholder(placeholder);
+	}
 
-            // Loads the artists view.
-            MusicPlayer.getMainController().loadView("artists");
+	@Override
+	public void scroll(char letter) {
+		// nothing to be done
+	}
 
-            // Removes the selected playlist from the library so that it is not reloaded.
-            Library.removePlaylist(selectedPlaylist);
+	@Override
+	public MPTrack getSelectedSong() {
+		return selectedSong;
+	}
 
-            // Resets the selected playlist to avoid storing the deleted playlist's data.
-            selectedPlaylist = null;
-        }
-    }
+	Playlist getSelectedPlaylist() {
+		return selectedPlaylist;
+	}
+
+	void deleteSelectedRow() {
+		// Retrieves the table view items and the selected item.
+		ObservableList<MPTrack> allSongs, selectedSong;
+		allSongs = tableView.getItems();
+		selectedSong = tableView.getSelectionModel().getSelectedItems();
+
+		// Removes the selected item from the table view.
+		selectedSong.forEach(allSongs::remove);
+	}
+
+	@FXML
+	private void playPlaylist() {
+		ObservableList<MPTrack> songs = selectedPlaylist.getSongs();
+		player.setNowPlayingList(songs);
+		player.setNowPlaying(songs.get(0));
+		player.play();
+	}
+
+	@FXML
+	private void deletePlaylist() {
+		if (!deletePlaylistAnimation.getStatus().equals(Status.RUNNING)) {
+			// Gets the title of the selected playlist to compare it against the labels of the playlist boxes.
+			String selectedPlaylistTitle = selectedPlaylist.getTitle();
+
+			// Gets the playlist box children to loop through each to find the correct child to remove.
+			ObservableList<Node> playlistBoxChildren = MusicPlayer.getMainController().getPlaylistBox().getChildren();
+
+			// Initialize i at 1 to ignore the new playlist cell.
+			for (int i = 1; i <= playlistBoxChildren.size(); i++) {
+				// Gets each cell in the playlist box and retrieves the cell's label.
+				cell = (HBox) playlistBoxChildren.get(i);
+				Label cellLabel = (Label) cell.getChildren().get(1);
+
+				// Ends the process if the cell's label matches the selected playlist's title.
+				if (cellLabel.getText().equals(selectedPlaylistTitle)) {
+					break;
+				}
+			}
+
+			deletePlaylistAnimation.play();
+
+			// Deletes the play list from the xml file.
+			//            XMLEditor.deletePlaylistFromXML(selectedPlaylist.getId());
+
+			// Loads the artists view.
+			MusicPlayer.getMainController().loadView("artists");
+
+			// Removes the selected playlist from the library so that it is not reloaded.
+			//            Library.removePlaylist(selectedPlaylist);
+
+			// Resets the selected playlist to avoid storing the deleted playlist's data.
+			selectedPlaylist = null;
+		}
+	}
 }

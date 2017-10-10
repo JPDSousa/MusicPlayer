@@ -3,14 +3,18 @@ package app.musicplayer.view;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.ResourceBundle;
 import java.util.concurrent.CountDownLatch;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Album;
-import app.musicplayer.model.Artist;
-import app.musicplayer.model.Library;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.Utils;
+import app.musicplayer.rookit.dm.MPAlbum;
+import app.musicplayer.rookit.dm.MPArtist;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.ClippedTableCell;
 import app.musicplayer.util.ControlPanelTableCell;
 import app.musicplayer.util.PlayingTableCell;
@@ -19,6 +23,7 @@ import javafx.animation.Animation;
 import javafx.animation.Interpolator;
 import javafx.animation.Transition;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -51,14 +56,15 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class ArtistsMainController implements Initializable, SubView {
-
-    private class ArtistCell extends ListCell<Artist> {
+	
+    private class ArtistCell extends ListCell<MPArtist> {
 
         private HBox cell = new HBox();
         private ImageView artistImage = new ImageView();
         private Label title = new Label();
-        private Artist artist;
+        private MPArtist artist;
 
         ArtistCell() {
             super();
@@ -87,7 +93,7 @@ public class ArtistsMainController implements Initializable, SubView {
         }
 
         @Override
-        protected void updateItem(Artist artist, boolean empty) {
+        protected void updateItem(MPArtist artist, boolean empty) {
 
             super.updateItem(artist, empty);
             this.artist = artist;
@@ -97,18 +103,17 @@ public class ArtistsMainController implements Initializable, SubView {
                 setGraphic(null);
 
             } else {
-
-                title.setText(artist.getTitle());
-                artistImage.imageProperty().bind(artist.artistImageProperty());
+                title.setText(artist.getName());
+                artistImage.imageProperty().bind(artist.imageProperty());
                 setGraphic(cell);
             }
         }
     }
 
-    private class AlbumCell extends ListCell<Album> {
+    private class AlbumCell extends ListCell<MPAlbum> {
 
         private ImageView albumArtwork = new ImageView();
-        private Album album;
+        private MPAlbum album;
 
         AlbumCell() {
             super();
@@ -135,7 +140,7 @@ public class ArtistsMainController implements Initializable, SubView {
         }
 
         @Override
-        protected void updateItem(Album album, boolean empty) {
+        protected void updateItem(MPAlbum album, boolean empty) {
 
             super.updateItem(album, empty);
             this.album = album;
@@ -146,19 +151,19 @@ public class ArtistsMainController implements Initializable, SubView {
 
             } else {
 
-                albumArtwork.setImage(album.getArtwork());
+                albumArtwork.setImage(Utils.getAlbumArtwork(player.getLibrary(), album));
                 setGraphic(albumArtwork);
             }
         }
     }
 
-    @FXML private ListView<Artist> artistList;
-    @FXML private ListView<Album> albumList;
-    @FXML private TableView<Song> songTable;
-    @FXML private TableColumn<Song, Boolean> playingColumn;
-    @FXML private TableColumn<Song, String> titleColumn;
-    @FXML private TableColumn<Song, String> lengthColumn;
-    @FXML private TableColumn<Song, Integer> playsColumn;
+    @FXML private ListView<MPArtist> artistList;
+    @FXML private ListView<MPAlbum> albumList;
+    @FXML private TableView<MPTrack> songTable;
+    @FXML private TableColumn<MPTrack, Boolean> playingColumn;
+    @FXML private TableColumn<MPTrack, String> titleColumn;
+    @FXML private TableColumn<MPTrack, String> lengthColumn;
+    @FXML private TableColumn<MPTrack, Integer> playsColumn;
     @FXML private Label artistLabel;
     @FXML private Label albumLabel;
     @FXML private Separator separator;
@@ -166,16 +171,18 @@ public class ArtistsMainController implements Initializable, SubView {
     @FXML private ScrollPane scrollPane;
     @FXML private ScrollPane artistListScrollPane;
 
-    private Song selectedSong;
-    private Album selectedAlbum;
-    private Artist selectedArtist;
+    private MPTrack selectedTrack;
+    private MPAlbum selectedAlbum;
+    private MPArtist selectedArtist;
     private double expandedHeight = 50;
     private double collapsedHeight = 0;
     private CountDownLatch loadedLatch;
     
+    private MusicPlayer player;
+    
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-    	
+    	player = MusicPlayer.getCurrent();
     	songTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
     	
     	loadedLatch = new CountDownLatch(1);
@@ -210,7 +217,7 @@ public class ArtistsMainController implements Initializable, SubView {
         	event.consume();
         });
 
-        ObservableList<Artist> artists = Library.getArtists();
+        ObservableList<MPArtist> artists = player.getLibrary().getAllArtists();
         Collections.sort(artists);
         
         artistList.setItems(artists);
@@ -218,33 +225,32 @@ public class ArtistsMainController implements Initializable, SubView {
         artistList.setOnMouseClicked(event -> {
 
             if (event.getClickCount() == 2) {
-
-                ObservableList<Song> songs = FXCollections.observableArrayList();
-                ObservableList<Album> albums = FXCollections.observableArrayList();
-                for (Album album : selectedArtist.getAlbums()) {
+                ObservableList<MPTrack> songs = FXCollections.observableArrayList();
+                ObservableList<MPAlbum> albums = FXCollections.observableArrayList();
+                final Iterable<MPAlbum> artistAlbums = player.getLibrary().getArtistAlbums(selectedArtist);
+                for (MPAlbum album : artistAlbums) {
                     albums.add(album);
-                    songs.addAll(album.getSongs());
+                    album.getMPTracks().forEach(songs::add);
                 }
                 
-                if (MusicPlayer.isShuffleActive()) {
+                if (player.isShuffleActive()) {
                 	Collections.shuffle(songs);
                 } else {
-                    Collections.sort(songs, (first, second) -> {
-
-                        Album firstAlbum = albums.stream().filter(x -> x.getTitle().equals(first.getAlbum())).findFirst().get();
-                        Album secondAlbum = albums.stream().filter(x -> x.getTitle().equals(second.getAlbum())).findFirst().get();
-                        if (firstAlbum.compareTo(secondAlbum) != 0) {
-                            return firstAlbum.compareTo(secondAlbum);
-                        } else {
-                            return first.compareTo(second);
-                        }
-                    });
+                	// orders by album name, and then by track name
+//                    Collections.sort(songs, (first, second) -> {
+//                        MPAlbum firstAlbum = albums.stream().filter(x -> x.getTitle().equals(first.getAlbum())).findFirst().get();
+//                        MPAlbum secondAlbum = albums.stream().filter(x -> x.getTitle().equals(second.getAlbum())).findFirst().get();
+//                        if (firstAlbum.compareTo(secondAlbum) != 0) {
+//                            return firstAlbum.compareTo(secondAlbum);
+//                        }
+//						return first.compareTo(second);
+//                    });
                 }
 
-                Song song = songs.get(0);
-                MusicPlayer.setNowPlayingList(songs);
-                MusicPlayer.setNowPlaying(song);
-                MusicPlayer.play();
+                MPTrack song = songs.get(0);
+                player.setNowPlayingList(songs);
+                player.setNowPlaying(song);
+                player.play();
 
             } else {
                 	
@@ -253,8 +259,8 @@ public class ArtistsMainController implements Initializable, SubView {
     	        		Platform.runLater(() -> {
     	        			subViewRoot.setVisible(false);
     	        			selectedArtist = artistList.getSelectionModel().getSelectedItem();
-                            showAllSongs(selectedArtist, false);
-                            artistLabel.setText(selectedArtist.getTitle());
+                            showAllTracks(selectedArtist, false);
+                            artistLabel.setText(selectedArtist.getName());
                             albumList.setPrefWidth(albumList.getItems().size() * 150 + 2);
                             albumList.setMaxWidth(albumList.getItems().size() * 150 + 2);
                             albumList.scrollTo(0);
@@ -278,7 +284,7 @@ public class ArtistsMainController implements Initializable, SubView {
 
         albumList.setOnMouseClicked(event -> {
 
-            Album album = albumList.getSelectionModel().getSelectedItem();
+            MPAlbum album = albumList.getSelectionModel().getSelectedItem();
 
             if (event.getClickCount() == 2) {
 
@@ -286,17 +292,16 @@ public class ArtistsMainController implements Initializable, SubView {
                     selectAlbum(album);
                 }
 
-                ArrayList<Song> songs = selectedAlbum.getSongs();
-
-                if (MusicPlayer.isShuffleActive()) {
+                List<MPTrack> songs = Lists.newArrayList(selectedAlbum.getMPTracks());
+                if (player.isShuffleActive()) {
                 	Collections.shuffle(songs);
                 } else {
                 	Collections.sort(songs);
                 }
 
-                MusicPlayer.setNowPlayingList(songs);
-                MusicPlayer.setNowPlaying(songs.get(0));
-                MusicPlayer.play();
+                player.setNowPlayingList(songs);
+                player.setNowPlaying(songs.get(0));
+                player.play();
 
             } else {
             	
@@ -325,7 +330,7 @@ public class ArtistsMainController implements Initializable, SubView {
 
         songTable.setRowFactory(x -> {
 
-            TableRow<Song> row = new TableRow<>();
+            TableRow<MPTrack> row = new TableRow<>();
 
             PseudoClass playing = PseudoClass.getPseudoClass("playing");
 
@@ -333,20 +338,20 @@ public class ArtistsMainController implements Initializable, SubView {
                 row.pseudoClassStateChanged(playing, newValue);
             };
 
-            row.itemProperty().addListener((obs, previousSong, currentSong) -> {
-            	if (previousSong != null) {
-            		previousSong.playingProperty().removeListener(changeListener);
+            row.itemProperty().addListener((obs, previousTrack, currentTrack) -> {
+            	if (previousTrack != null) {
+            		previousTrack.playingProperty().removeListener(changeListener);
             	}
-                if (currentSong != null) {
-                    currentSong.playingProperty().addListener(changeListener);
-                    row.pseudoClassStateChanged(playing, currentSong.getPlaying());
+                if (currentTrack != null) {
+                    currentTrack.playingProperty().addListener(changeListener);
+                    row.pseudoClassStateChanged(playing, currentTrack.isPlaying());
                 } else {
                     row.pseudoClassStateChanged(playing, false);
                 }
             });
 
             row.setOnMouseClicked(event -> {
-            	TableViewSelectionModel<Song> sm = songTable.getSelectionModel();
+            	TableViewSelectionModel<MPTrack> sm = songTable.getSelectionModel();
                 if (event.getClickCount() == 2 && !row.isEmpty()) {
                     play();
                 } else if (event.isShiftDown()) {
@@ -400,7 +405,7 @@ public class ArtistsMainController implements Initializable, SubView {
                     db.setContent(content);
                 	MusicPlayer.setDraggedItem(songTable.getSelectionModel().getSelectedItems());
             	} else {
-            		content.putString("Song");
+            		content.putString("Track");
                     db.setContent(content);
                 	MusicPlayer.setDraggedItem(row.getItem());
             	}
@@ -420,7 +425,7 @@ public class ArtistsMainController implements Initializable, SubView {
         	}
         	if (newSelection != null && songTable.getSelectionModel().getSelectedIndices().size() == 1) {
         		newSelection.setSelected(true);
-        		selectedSong = newSelection;
+        		selectedTrack = newSelection;
         	}
         });
         
@@ -440,7 +445,8 @@ public class ArtistsMainController implements Initializable, SubView {
                 setInterpolator(Interpolator.EASE_BOTH);
         	}
         	
-        	protected void interpolate(double frac) {
+        	@Override
+			protected void interpolate(double frac) {
         		artistList.setMinHeight(frac * height);
         		artistList.setPrefHeight(frac * height);
         	}
@@ -448,23 +454,23 @@ public class ArtistsMainController implements Initializable, SubView {
         artistListLoadAnimation.play();
     }
 
-    void selectAlbum(Album album) {
+    void selectAlbum(MPAlbum album) {
 
         if (selectedAlbum == album) {
 
             albumList.getSelectionModel().clearSelection();
-            showAllSongs(artistList.getSelectionModel().getSelectedItem(), false);
+            showAllTracks(artistList.getSelectionModel().getSelectedItem(), false);
 
         } else {
         	
-        	if (selectedSong != null) {
-        		selectedSong.setSelected(false);
+        	if (selectedTrack != null) {
+        		selectedTrack.setSelected(false);
         	}
-        	selectedSong = null;
+        	selectedTrack = null;
             selectedAlbum = album;
             albumList.getSelectionModel().select(selectedAlbum);
-            ObservableList<Song> songs = FXCollections.observableArrayList();
-            songs.addAll(album.getSongs());
+            ObservableList<MPTrack> songs = FXCollections.observableArrayList();
+            album.getMPTracks().forEach(songs::add);
             Collections.sort(songs);
             songTable.getSelectionModel().clearSelection();
             songTable.setItems(songs);
@@ -480,7 +486,8 @@ public class ArtistsMainController implements Initializable, SubView {
                     setInterpolator(Interpolator.EASE_BOTH);
             	}
             	
-            	protected void interpolate(double frac) {
+            	@Override
+				protected void interpolate(double frac) {
             		songTable.setMinHeight(frac * height);
                     songTable.setPrefHeight(frac * height);
             	}
@@ -497,7 +504,7 @@ public class ArtistsMainController implements Initializable, SubView {
         }
     }
     
-    void selectArtist(Artist artist) {
+    void selectArtist(MPArtist artist) {
     	
     	selectedArtist = artist;
         artistList.getSelectionModel().select(artist);
@@ -511,20 +518,21 @@ public class ArtistsMainController implements Initializable, SubView {
             try {
 				latch.await();
 				int selectedCell = artistList.getSelectionModel().getSelectedIndex();
-	            double vValue = (selectedCell * 50) / (Library.getArtists().size() * 50 - artistListScrollPane.getHeight());
+	            double vValue = (selectedCell * 50) / (player.getLibrary().streamArtists().count() * 50 - artistListScrollPane.getHeight());
 	            artistListScrollPane.setVvalue(vValue);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
         }).start();
-        showAllSongs(artist, true);
-        albumList.setPrefWidth(artist.getAlbums().size() * 150 + 2);
-        albumList.setMaxWidth(artist.getAlbums().size() * 150 + 2);
-        artistLabel.setText(artist.getTitle());
+        showAllTracks(artist, true);
+        final long nAlbums = player.getLibrary().getArtistAlbums(selectedArtist).size();
+        albumList.setPrefWidth(nAlbums * 150 + 2);
+        albumList.setMaxWidth(nAlbums * 150 + 2);
+        artistLabel.setText(artist.getName());
         separator.setVisible(true);
     }
     
-    void selectSong(Song song) {
+    void selectTrack(MPTrack song) {
     	
     	new Thread(() -> {
             try {
@@ -540,46 +548,45 @@ public class ArtistsMainController implements Initializable, SubView {
         }).start();
     }
     
-    public Song getSelectedSong() {
-    	return selectedSong;
+    @Override
+	public MPTrack getSelectedSong() {
+    	return selectedTrack;
     }
 
-    private void showAllSongs(Artist artist, boolean fromMainController) {
+    private void showAllTracks(MPArtist artist, boolean fromMainController) {
 
-        ObservableList<Album> albums = FXCollections.observableArrayList();
-        ObservableList<Song> songs = FXCollections.observableArrayList();
+        ObservableList<MPAlbum> albums = FXCollections.observableArrayList();
+        ObservableList<MPTrack> songs = FXCollections.observableArrayList();
+        final ObservableList<MPAlbum> artistAlbums = player.getLibrary().getArtistAlbums(artist);
 
-        for (Album album : artist.getAlbums()) {
-
+        for (MPAlbum album : artistAlbums) {
             albums.add(album);
-
-            songs.addAll(album.getSongs());
+            album.getMPTracks().forEach(songs::add);
         }
 
-        Collections.sort(songs, (first, second) -> {
-
-            Album firstAlbum = albums.stream().filter(x -> x.getTitle().equals(first.getAlbum())).findFirst().get();
-            Album secondAlbum = albums.stream().filter(x -> x.getTitle().equals(second.getAlbum())).findFirst().get();
-            if (firstAlbum.compareTo(secondAlbum) != 0) {
-                return firstAlbum.compareTo(secondAlbum);
-            } else {
-                return first.compareTo(second);
-            }
-        });
+        // sort songs by album title, then by title
+//        Collections.sort(songs, (first, second) -> {
+//            MPAlbum firstAlbum = albums.stream().filter(x -> x.getTitle().equals(first.getAlbum())).findFirst().get();
+//            MPAlbum secondAlbum = albums.stream().filter(x -> x.getTitle().equals(second.getAlbum())).findFirst().get();
+//            if (firstAlbum.compareTo(secondAlbum) != 0) {
+//                return firstAlbum.compareTo(secondAlbum);
+//            }
+//			return first.compareTo(second);
+//        });
 
         Collections.sort(albums);
 
-        if (selectedSong != null) {
-        	selectedSong.setSelected(false);
+        if (selectedTrack != null) {
+        	selectedTrack.setSelected(false);
         }
-        selectedSong = null;
+        selectedTrack = null;
     	selectedAlbum = null;
         albumList.getSelectionModel().clearSelection();
         albumList.setItems(albums);
         songTable.setItems(songs);
         songTable.getSelectionModel().clearSelection();
         scrollPane.setVvalue(0);
-        albumLabel.setText("All Songs");
+        albumLabel.setText("All Tracks");
         songTable.setMinHeight(0);
         songTable.setPrefHeight(0);
         songTable.setVisible(true);
@@ -590,7 +597,8 @@ public class ArtistsMainController implements Initializable, SubView {
                 setInterpolator(Interpolator.EASE_BOTH);
         	}
         	
-        	protected void interpolate(double frac) {
+        	@Override
+			protected void interpolate(double frac) {
         		songTable.setMinHeight(frac * height);
                 songTable.setPrefHeight(frac * height);
         	}
@@ -617,49 +625,48 @@ public class ArtistsMainController implements Initializable, SubView {
     @Override
     public void play() {
     	
-    	Song song = selectedSong;
-        ArrayList<Song> songs = new ArrayList<>();
+    	MPTrack song = selectedTrack;
+        List<MPTrack> songs = new ArrayList<>();
 
         if (selectedAlbum != null) {
-            songs.addAll(selectedAlbum.getSongs());
+        	selectedAlbum.getMPTracks().forEach(songs::add);
         } else {
-            for (Album album : selectedArtist.getAlbums()) {
-                songs.addAll(album.getSongs());
+            for (MPAlbum album : player.getLibrary().getArtistAlbums(selectedArtist)) {
+            	album.getMPTracks().forEach(songs::add);
             }
         }
         
-        if (MusicPlayer.isShuffleActive()) {
+        if (player.isShuffleActive()) {
         	Collections.shuffle(songs);
         	songs.remove(song);
         	songs.add(0, song);
         } else {
-        	Collections.sort(songs, (first, second) -> {
-
-                Album firstAlbum = Library.getAlbum(first.getAlbum());
-                Album secondAlbum = Library.getAlbum(second.getAlbum());
-                if (firstAlbum.compareTo(secondAlbum) != 0) {
-                    return firstAlbum.compareTo(secondAlbum);
-                } else {
-                    return first.compareTo(second);
-                }
-            });
+        	// sort by album title, then by title
+//        	Collections.sort(songs, (first, second) -> {
+//                MPAlbum firstAlbum = Library.getDefault().getAlbum(first.getAlbum());
+//                MPAlbum secondAlbum = Library.getDefault().getAlbum(second.getAlbum());
+//                if (firstAlbum.compareTo(secondAlbum) != 0) {
+//                    return firstAlbum.compareTo(secondAlbum);
+//                }
+//				return first.compareTo(second);
+//            });
         }
 
-        MusicPlayer.setNowPlayingList(songs);
-        MusicPlayer.setNowPlaying(song);
-        MusicPlayer.play();
+        player.setNowPlayingList(songs);
+        player.setNowPlaying(song);
+        player.play();
     }
     
     @Override
     public void scroll(char letter) {
     	
-    	ObservableList<Artist> artistListItems = artistList.getItems();
+    	ObservableList<MPArtist> artistListItems = artistList.getItems();
     	
-    	int selectedCell = 0;
+    	double selectedCell = 0;
 
-        for (Artist artist : artistListItems) {
+        for (MPArtist artist : artistListItems) {
             // Removes article from artist title and compares it to selected letter.
-            String artistTitle = artist.getTitle();
+            String artistTitle = artist.getName();
             char firstLetter = removeArticle(artistTitle).charAt(0);
             if (firstLetter < letter) {
                 selectedCell++;
@@ -667,13 +674,14 @@ public class ArtistsMainController implements Initializable, SubView {
         }
     	
     	double startVvalue = artistListScrollPane.getVvalue();
-    	double finalVvalue = (double) (selectedCell * 50) / (Library.getArtists().size() * 50 - artistListScrollPane.getHeight());
+    	double finalVvalue = selectedCell * 50 / (player.getLibrary().streamArtists().count() * 50 - artistListScrollPane.getHeight());
     	
     	Animation scrollAnimation = new Transition() {
             {
                 setCycleDuration(Duration.millis(500));
             }
-            protected void interpolate(double frac) {
+            @Override
+			protected void interpolate(double frac) {
                 double vValue = startVvalue + ((finalVvalue - startVvalue) * frac);
                 artistListScrollPane.setVvalue(vValue);
             }
@@ -687,20 +695,18 @@ public class ArtistsMainController implements Initializable, SubView {
 
         if (arr.length < 2) {
             return title;
-        } else {
-
-            String firstWord = arr[0];
-            String theRest = arr[1];
-
-            switch (firstWord) {
-                case "A":
-                case "An":
-                case "The":
-                    return theRest;
-                default:
-                    return title;
-            }
         }
+		String firstWord = arr[0];
+		String theRest = arr[1];
+
+		switch (firstWord) {
+		    case "A":
+		    case "An":
+		    case "The":
+		        return theRest;
+		    default:
+		        return title;
+		}
     }
     
     private Animation artistLoadAnimation = new Transition() {
@@ -708,7 +714,8 @@ public class ArtistsMainController implements Initializable, SubView {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (frac);
             subViewRoot.setTranslateY(expandedHeight - curHeight);
             subViewRoot.setOpacity(frac);
@@ -720,7 +727,8 @@ public class ArtistsMainController implements Initializable, SubView {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (1 - frac);
             subViewRoot.setTranslateY(expandedHeight - curHeight);
             subViewRoot.setOpacity(1 - frac);
@@ -732,7 +740,8 @@ public class ArtistsMainController implements Initializable, SubView {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (frac);
             songTable.setTranslateY(expandedHeight - curHeight);
             songTable.setOpacity(frac);
@@ -744,7 +753,8 @@ public class ArtistsMainController implements Initializable, SubView {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (1 - frac);
             songTable.setTranslateY(expandedHeight - curHeight);
             songTable.setOpacity(1 - frac);

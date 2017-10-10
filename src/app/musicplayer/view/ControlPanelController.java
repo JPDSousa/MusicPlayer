@@ -4,9 +4,8 @@ import java.net.URL;
 import java.util.ResourceBundle;
 
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Library;
 import app.musicplayer.model.Playlist;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.SubView;
 import javafx.animation.Animation;
 import javafx.animation.Interpolator;
@@ -23,6 +22,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class ControlPanelController implements Initializable {
 
 	@FXML private Pane playButton;
@@ -35,6 +35,7 @@ public class ControlPanelController implements Initializable {
 			setCycleDuration(Duration.millis(250));
 			setInterpolator(Interpolator.EASE_BOTH);
 		}
+		@Override
 		protected void interpolate(double frac) {
 			contextMenu.setOpacity(frac);
 		}
@@ -58,9 +59,9 @@ public class ControlPanelController implements Initializable {
 		double y = mouseEvent.getScreenY();
 
 		// Retrieves the selected song to add to the desired playlist.
-		Song selectedSong = MusicPlayer.getMainController().getSubViewController().getSelectedSong();
+		MPTrack selectedSong = MusicPlayer.getMainController().getSubViewController().getSelectedSong();
 
-		ObservableList<Playlist> playlists = Library.getPlaylists();
+		ObservableList<Playlist> playlists = FXCollections.observableArrayList();
 
 		// Retrieves all the playlist titles to create menu items.
 		ObservableList<String> playlistTitles = FXCollections.observableArrayList();
@@ -77,7 +78,7 @@ public class ControlPanelController implements Initializable {
 		MenuItem playing = new MenuItem("Playing");
 		playing.setStyle("-fx-text-fill: black");
 		playing.setOnAction(e1 -> {
-			MusicPlayer.addSongToNowPlayingList(selectedSong);
+//			MusicPlayer.addSongToNowPlayingList(selectedSong);
 		});
 
 		contextMenu.getItems().add(playing);

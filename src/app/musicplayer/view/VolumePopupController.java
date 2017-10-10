@@ -13,6 +13,7 @@ import javafx.scene.control.Slider;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 
+@SuppressWarnings("javadoc")
 public class VolumePopupController implements Initializable {
 
 	@FXML private Slider volumeSlider;
@@ -38,7 +39,6 @@ public class VolumePopupController implements Initializable {
 			});
 
 		} catch (Exception ex) {
-
 			ex.printStackTrace();
 		}
 	}

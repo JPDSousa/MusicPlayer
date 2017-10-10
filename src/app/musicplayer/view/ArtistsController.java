@@ -5,9 +5,8 @@ import java.util.Collections;
 import java.util.ResourceBundle;
 
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Artist;
-import app.musicplayer.model.Library;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.dm.MPArtist;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.SubView;
 import javafx.animation.Animation;
 import javafx.animation.Transition;
@@ -30,21 +29,24 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class ArtistsController implements Initializable, SubView {
 
     @FXML private FlowPane grid;
     
+    private MusicPlayer player;
+    
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-
-        ObservableList<Artist> artists = Library.getArtists();
+    	player = MusicPlayer.getCurrent();
+        ObservableList<MPArtist> artists = player.getLibrary().getAllArtists();
         Collections.sort(artists);
 
         int limit = (artists.size() < 25) ? artists.size() : 25;
 
         for (int i = 0; i < limit; i++) {
 
-            Artist artist = artists.get(i);
+            MPArtist artist = artists.get(i);
             grid.getChildren().add(createCell(artist));
         }
 
@@ -60,19 +62,19 @@ public class ArtistsController implements Initializable, SubView {
         	}
         	
             for (int j = 25; j < artists.size(); j++) {
-                Artist artist = artists.get(j);
+                MPArtist artist = artists.get(j);
                 Platform.runLater(() -> grid.getChildren().add(createCell(artist)));
             }
 
         }).start();
     }
     
-    private VBox createCell(Artist artist) {
+    private VBox createCell(MPArtist artist) {
 
         VBox cell = new VBox();
-        Label title = new Label(artist.getTitle());
-        ImageView image = new ImageView(artist.getArtistImage());
-        image.imageProperty().bind(artist.artistImageProperty());
+        Label title = new Label(artist.getName());
+        ImageView image = new ImageView(artist.getImage());
+        image.imageProperty().bind(artist.imageProperty());
         VBox imageBox = new VBox();
 
         title.setTextOverrun(OverrunStyle.CLIP);
@@ -103,7 +105,7 @@ public class ArtistsController implements Initializable, SubView {
 
             VBox artistCell = (VBox) event.getSource();
             String artistTitle = ((Label) artistCell.getChildren().get(1)).getText();
-            Artist a = Library.getArtist(artistTitle);
+            MPArtist a = player.getLibrary().getArtist(artistTitle);
             artistsMainController.selectArtist(a);
         });
         
@@ -153,7 +155,8 @@ public class ArtistsController implements Initializable, SubView {
             {
                 setCycleDuration(Duration.millis(500));
             }
-            protected void interpolate(double frac) {
+            @Override
+			protected void interpolate(double frac) {
                 double vValue = startVvalue + ((finalVvalue - startVvalue) * frac);
                 scrollpane.setVvalue(vValue);
             }
@@ -168,23 +171,22 @@ public class ArtistsController implements Initializable, SubView {
 
         if (arr.length < 2) {
             return title;
-        } else {
-
-            String firstWord = arr[0];
-            String theRest = arr[1];
-
-            switch (firstWord) {
-                case "A":
-                case "An":
-                case "The":
-                    return theRest;
-                default:
-                    return title;
-            }
         }
+		String firstWord = arr[0];
+		String theRest = arr[1];
+
+		switch (firstWord) {
+		    case "A":
+		    case "An":
+		    case "The":
+		        return theRest;
+		    default:
+		        return title;
+		}
     }
     
-    public Song getSelectedSong() {
+    @Override
+	public MPTrack getSelectedSong() {
     	return null;
     }
 }

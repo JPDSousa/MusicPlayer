@@ -1,16 +1,27 @@
 package app.musicplayer.view;
 
 import java.net.URL;
+import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.concurrent.CountDownLatch;
 
-import app.musicplayer.model.*;
+import org.rookit.dm.utils.PrintUtils;
+
+import app.musicplayer.MusicPlayer;
+import app.musicplayer.model.Playlist;
+import app.musicplayer.model.SearchResult;
+import app.musicplayer.rookit.Utils;
+import app.musicplayer.rookit.dm.MPAlbum;
+import app.musicplayer.rookit.dm.MPArtist;
+import app.musicplayer.rookit.dm.MPFactory;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.Search;
+
+import com.google.common.collect.Lists;
 import com.melloware.jintellitype.IntellitypeListener;
 import com.melloware.jintellitype.JIntellitype;
 
-import app.musicplayer.MusicPlayer;
 import app.musicplayer.util.CustomSliderSkin;
 import app.musicplayer.util.Resources;
 import app.musicplayer.util.SubView;
@@ -46,6 +57,7 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class MainController implements Initializable, IntellitypeListener {
 
 	private boolean isSideBarExpanded = true;
@@ -83,10 +95,13 @@ public class MainController implements Initializable, IntellitypeListener {
     @FXML private HBox controlBox;
 
 	@FXML private TextField searchBox;
+	
+	private MusicPlayer player;
+	private Search search;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-    	
+    	player = MusicPlayer.getCurrent();
     	resetLatch();
     	
     	controlBox.getChildren().remove(2);
@@ -102,13 +117,13 @@ public class MainController implements Initializable, IntellitypeListener {
     	PseudoClass active = PseudoClass.getPseudoClass("active");
     	loopButton.setOnMouseClicked(x -> {
     		sideBar.requestFocus();
-    		MusicPlayer.toggleLoop();
-    		loopButton.pseudoClassStateChanged(active, MusicPlayer.isLoopActive());
+    		player.toggleLoop();
+    		loopButton.pseudoClassStateChanged(active, player.isLoopActive());
     	});
     	shuffleButton.setOnMouseClicked(x -> {
     		sideBar.requestFocus();
-    		MusicPlayer.toggleShuffle();
-    		shuffleButton.pseudoClassStateChanged(active, MusicPlayer.isShuffleActive());
+    		player.toggleShuffle();
+    		shuffleButton.pseudoClassStateChanged(active, player.isShuffleActive());
     	});
     	
     	timeSlider.setFocusTraversable(false);
@@ -120,7 +135,7 @@ public class MainController implements Initializable, IntellitypeListener {
 
                     int seconds = (int) Math.round(timeSlider.getValue() / 4.0);
                     timeSlider.setValue(seconds * 4);
-                    MusicPlayer.seek(seconds);
+                    player.seek(seconds);
                 }
             }
         );
@@ -134,7 +149,7 @@ public class MainController implements Initializable, IntellitypeListener {
 
                     int seconds = (int) Math.round(current / 4.0);
                     timeSlider.setValue(seconds * 4);
-                    MusicPlayer.seek(seconds);
+                    player.seek(seconds);
                 }
             }
         );
@@ -151,16 +166,16 @@ public class MainController implements Initializable, IntellitypeListener {
                     searchHideAnimation.play();
                 }
             } else {
-                Search.search(text);
+                search.search(text);
 			}
 		});
 
-		Search.hasResultsProperty().addListener((observable, hadResults, hasResults) -> {
+		search.hasResultsProperty().addListener((observable, hadResults, hasResults) -> {
 			if (hasResults) {
-                SearchResult result = Search.getResult();
+                SearchResult result = search.getResult();
                 Platform.runLater(() -> {
                     showSearchResults(result);
-                    MusicPlayer.getStage().toFront();
+                    player.getStage().toFront();
                 });
                 int height = 0;
                 int artists = result.getArtistResults().size();
@@ -174,13 +189,13 @@ public class MainController implements Initializable, IntellitypeListener {
             }
 		});
 
-		MusicPlayer.getStage().xProperty().addListener((observable, oldValue, newValue) -> {
+		player.getStage().xProperty().addListener((observable, oldValue, newValue) -> {
             if (searchPopup.isShowing() && !searchHideAnimation.getStatus().equals(Status.RUNNING)) {
                 searchHideAnimation.play();
             }
         });
 
-        MusicPlayer.getStage().yProperty().addListener((observable, oldValue, newValue) -> {
+        player.getStage().yProperty().addListener((observable, oldValue, newValue) -> {
             if (searchPopup.isShowing() && !searchHideAnimation.getStatus().equals(Status.RUNNING)) {
                 searchHideAnimation.play();
             }
@@ -234,7 +249,7 @@ public class MainController implements Initializable, IntellitypeListener {
     private void createVolumePopup() {
     	try {
     		
-    		Stage stage = MusicPlayer.getStage();
+    		Stage stage = player.getStage();
         	FXMLLoader loader = new FXMLLoader(this.getClass().getResource(Resources.FXML + "VolumePopup.fxml"));
         	HBox view = loader.load();
         	volumePopupController = loader.getController();
@@ -264,7 +279,7 @@ public class MainController implements Initializable, IntellitypeListener {
 	private void createSearchPopup() {
 		try {
 
-			Stage stage = MusicPlayer.getStage();
+			Stage stage = player.getStage();
 			VBox view = new VBox();
             view.getStylesheets().add(Resources.CSS + "MainStyle.css");
             view.getStyleClass().add("searchPopup");
@@ -286,11 +301,11 @@ public class MainController implements Initializable, IntellitypeListener {
     
     public void updateNowPlayingButton() {
 
-        Song song = MusicPlayer.getNowPlaying();
+        MPTrack song = player.getNowPlaying();
         if (song != null) {
-            nowPlayingTitle.setText(song.getTitle());
-            nowPlayingArtist.setText(song.getArtist());
-            nowPlayingArtwork.setImage(song.getArtwork());
+            nowPlayingTitle.setText(song.getTitle().toString());
+            nowPlayingArtist.setText(PrintUtils.getIterableAsString(song.getMainArtists(), ", "));
+            nowPlayingArtwork.setImage(MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next()).getImage());
         } else {
             nowPlayingTitle.setText("");
             nowPlayingArtist.setText("");
@@ -300,10 +315,10 @@ public class MainController implements Initializable, IntellitypeListener {
 
     public void initializeTimeSlider() {
 
-        Song song = MusicPlayer.getNowPlaying();
+        MPTrack song = player.getNowPlaying();
         if (song != null) {
             timeSlider.setMin(0);
-            timeSlider.setMax(song.getLengthInSeconds() * 4);
+            timeSlider.setMax(song.getDuration()/1000 * 4);
             timeSlider.setValue(0);
             timeSlider.setBlockIncrement(1);
         } else {
@@ -321,10 +336,10 @@ public class MainController implements Initializable, IntellitypeListener {
 
     public void initializeTimeLabels() {
 
-        Song song = MusicPlayer.getNowPlaying();
+        MPTrack song = player.getNowPlaying();
         if (song != null) {
             timePassed.setText("0:00");
-            timeRemaining.setText(song.getLength());
+            timeRemaining.setText(Utils.getDurationClockString(song));
         } else {
             timePassed.setText("");
             timeRemaining.setText("");
@@ -333,13 +348,13 @@ public class MainController implements Initializable, IntellitypeListener {
 
     public void updateTimeLabels() {
 
-        timePassed.setText(MusicPlayer.getTimePassed());
-        timeRemaining.setText(MusicPlayer.getTimeRemaining());
+        timePassed.setText(player.getTimePassed());
+        timeRemaining.setText(player.getTimeRemaining());
     }
     
     @SuppressWarnings("unchecked")
 	private void initializePlaylists() {
-    	for (Playlist playlist : Library.getPlaylists()) {
+    	for (Playlist playlist : player.getLibrary().getAllPlaylists()) {
     		try {
     			FXMLLoader loader = new FXMLLoader(this.getClass().getResource(Resources.FXML + "PlaylistCell.fxml"));
 				HBox cell = loader.load();
@@ -366,9 +381,9 @@ public class MainController implements Initializable, IntellitypeListener {
 				PseudoClass hover = PseudoClass.getPseudoClass("hover");
 				
 				cell.setOnDragEntered(event -> {
-					if (!(playlist instanceof MostPlayedPlaylist)
+					if (/*!(playlist instanceof MostPlayedPlaylist)
 							&& !(playlist instanceof RecentlyPlayedPlaylist)
-							&& event.getGestureSource() != cell
+							&&*/ event.getGestureSource() != cell
 							&& event.getDragboard().hasString()) {
 						
 						cell.pseudoClassStateChanged(hover, true);
@@ -377,9 +392,9 @@ public class MainController implements Initializable, IntellitypeListener {
 				});
 				
 				cell.setOnDragExited(event -> {
-					if (!(playlist instanceof MostPlayedPlaylist)
+					if (/*!(playlist instanceof MostPlayedPlaylist)
 							&& !(playlist instanceof RecentlyPlayedPlaylist)
-							&& event.getGestureSource() != cell
+							&&*/ event.getGestureSource() != cell
 							&& event.getDragboard().hasString()) {
 						
 						cell.pseudoClassStateChanged(hover, false);
@@ -388,9 +403,9 @@ public class MainController implements Initializable, IntellitypeListener {
 				});
 				
 				cell.setOnDragOver(event -> {
-					if (!(playlist instanceof MostPlayedPlaylist)
+					if (/*!(playlist instanceof MostPlayedPlaylist)
 							&& !(playlist instanceof RecentlyPlayedPlaylist)
-							&& event.getGestureSource() != cell
+							&&*/ event.getGestureSource() != cell
 							&& event.getDragboard().hasString()) {
 						
 						event.acceptTransferModes(TransferMode.ANY);
@@ -403,9 +418,10 @@ public class MainController implements Initializable, IntellitypeListener {
 					new Thread(() -> {
 						switch (dragString) {
 			            case "Artist":
-			            	Artist artist = (Artist) MusicPlayer.getDraggedItem();
-				            for (Album album : artist.getAlbums()) {
-				            	for (Song song : album.getSongs()) {
+			            	final MPArtist artist = (MPArtist) player.getDraggedItem();
+			            	final Iterable<MPAlbum> albums = player.getLibrary().getArtistAlbums(artist);
+				            for (MPAlbum album : albums) {
+				            	for (MPTrack song : album.getMPTracks()) {
 				            		if (!playlist.getSongs().contains(song)) {
 						            	playlist.addSong(song);
 				            		}
@@ -413,30 +429,30 @@ public class MainController implements Initializable, IntellitypeListener {
 				            }
 				            break;
 			            case "Album":
-			            	Album album = (Album) MusicPlayer.getDraggedItem();
-				            for (Song song : album.getSongs()) {
+			            	MPAlbum album = (MPAlbum) player.getDraggedItem();
+				            for (MPTrack song : album.getMPTracks()) {
 				            	if (!playlist.getSongs().contains(song)) {
 					            	playlist.addSong(song);
 			            		}
 				            }
 				            break;
 			            case "Playlist":
-			            	Playlist list = (Playlist) MusicPlayer.getDraggedItem();
-				            for (Song song : list.getSongs()) {
+			            	Playlist list = (Playlist) player.getDraggedItem();
+				            for (MPTrack song : list.getSongs()) {
 				            	if (!playlist.getSongs().contains(song)) {
 					            	playlist.addSong(song);
 			            		}
 				            }
 				            break;
 			            case "Song":
-			            	Song song = (Song) MusicPlayer.getDraggedItem();
+			            	MPTrack song = (MPTrack) player.getDraggedItem();
 			            	if (!playlist.getSongs().contains(song)) {
 				            	playlist.addSong(song);
 		            		}
 				            break;
 			            case "List":
-							ObservableList<Song> songs = (ObservableList<Song>) MusicPlayer.getDraggedItem();
-			            	for (Song s : songs) {
+							ObservableList<MPTrack> songs = (ObservableList<MPTrack>) player.getDraggedItem();
+			            	for (MPTrack s : songs) {
 			            		if (!playlist.getSongs().contains(s)) {
 					            	playlist.addSong(s);
 			            		}
@@ -444,14 +460,10 @@ public class MainController implements Initializable, IntellitypeListener {
 			            	break;
 			            }
 					}).start();
-					
 					event.consume();
 				});
-				
 				playlistBox.getChildren().add(cell);
-				
 			} catch (Exception e) {
-				
 				e.printStackTrace();
 			}
     	}
@@ -459,14 +471,10 @@ public class MainController implements Initializable, IntellitypeListener {
     
     @FXML
     private void selectView(Event e) {
-
         HBox eventSource = ((HBox)e.getSource());
-
         eventSource.requestFocus();
-
         Optional<Node> previous = sideBar.getChildren().stream()
             .filter(x -> x.getStyleClass().get(0).equals("sideBarItemSelected")).findFirst();
-
         if (previous.isPresent()) {
             HBox previousItem = (HBox) previous.get();
             previousItem.getStyleClass().setAll("sideBarItem");
@@ -480,7 +488,6 @@ public class MainController implements Initializable, IntellitypeListener {
         }
 
         ObservableList<String> styles = eventSource.getStyleClass();
-
         if (styles.get(0).equals("sideBarItem")) {
             styles.setAll("sideBarItemSelected");
             loadView(eventSource.getId());
@@ -492,11 +499,8 @@ public class MainController implements Initializable, IntellitypeListener {
     @SuppressWarnings("unchecked")
 	@FXML
     private void newPlaylist() {
-    	
     	if (!newPlaylistAnimation.getStatus().equals(Status.RUNNING)) {
-    		
     		try {
-        		
     			FXMLLoader loader = new FXMLLoader(this.getClass().getResource(Resources.FXML + "PlaylistCell.fxml"));
     			HBox cell = loader.load();
     			
@@ -517,7 +521,7 @@ public class MainController implements Initializable, IntellitypeListener {
         				cell.getChildren().remove(textBox);
         				HBox.setMargin(label, new Insets(10, 10, 10, 10));
         				label.setVisible(true);
-        				Library.addPlaylist(text);
+//        				Library.getDefault().addPlaylist(text);
     				}
     			});
     			
@@ -529,14 +533,14 @@ public class MainController implements Initializable, IntellitypeListener {
     			
     			cell.setOnMouseClicked(x -> {
     				selectView(x);
-    				Playlist playlist = Library.getPlaylist(label.getText());
+    				Playlist playlist = player.getLibrary().getPlaylist(label.getText());
     				((PlaylistsController) subViewController).selectPlaylist(playlist);
     			});
     			
     			cell.setOnDragDetected(event -> {
     				PseudoClass pressed = PseudoClass.getPseudoClass("pressed");
 					cell.pseudoClassStateChanged(pressed, false);
-    				Playlist playlist = Library.getPlaylist(label.getText());
+    				Playlist playlist = player.getLibrary().getPlaylist(label.getText());
     	        	Dragboard db = cell.startDragAndDrop(TransferMode.ANY);
     	        	ClipboardContent content = new ClipboardContent();
     	            content.putString("Playlist");
@@ -551,10 +555,10 @@ public class MainController implements Initializable, IntellitypeListener {
     			PseudoClass hover = PseudoClass.getPseudoClass("hover");
 				
     			cell.setOnDragEntered(event -> {
-    				Playlist playlist = Library.getPlaylist(label.getText());
-					if (!(playlist instanceof MostPlayedPlaylist)
+    				Playlist playlist = player.getLibrary().getPlaylist(label.getText());
+					if (/*!(playlist instanceof MostPlayedPlaylist)
 							&& !(playlist instanceof RecentlyPlayedPlaylist)
-							&& event.getGestureSource() != cell
+							&&*/ event.getGestureSource() != cell
 							&& event.getDragboard().hasString()) {
 						
 						cell.pseudoClassStateChanged(hover, true);
@@ -562,10 +566,10 @@ public class MainController implements Initializable, IntellitypeListener {
 				});
 				
 				cell.setOnDragExited(event -> {
-					Playlist playlist = Library.getPlaylist(label.getText());
-					if (!(playlist instanceof MostPlayedPlaylist)
+    				Playlist playlist = player.getLibrary().getPlaylist(label.getText());
+					if (/*!(playlist instanceof MostPlayedPlaylist)
 							&& !(playlist instanceof RecentlyPlayedPlaylist)
-							&& event.getGestureSource() != cell
+							&&*/ event.getGestureSource() != cell
 							&& event.getDragboard().hasString()) {
 						
 						cell.pseudoClassStateChanged(hover, false);
@@ -573,10 +577,10 @@ public class MainController implements Initializable, IntellitypeListener {
 				});
 				
 				cell.setOnDragOver(event -> {
-					Playlist playlist = Library.getPlaylist(label.getText());
-					if (!(playlist instanceof MostPlayedPlaylist)
+    				Playlist playlist = player.getLibrary().getPlaylist(label.getText());
+					if (/*!(playlist instanceof MostPlayedPlaylist)
 							&& !(playlist instanceof RecentlyPlayedPlaylist)
-							&& event.getGestureSource() != cell
+							&&*/ event.getGestureSource() != cell
 							&& event.getDragboard().hasString()) {
 						
 						event.acceptTransferModes(TransferMode.ANY);
@@ -585,14 +589,15 @@ public class MainController implements Initializable, IntellitypeListener {
 				});
 				
 				cell.setOnDragDropped(event -> {
-					Playlist playlist = Library.getPlaylist(label.getText());
+    				Playlist playlist = player.getLibrary().getPlaylist(label.getText());
 					String dragString = event.getDragboard().getString();
 					new Thread(() -> {
 						switch (dragString) {
 			            case "Artist":
-			            	Artist artist = (Artist) MusicPlayer.getDraggedItem();
-				            for (Album album : artist.getAlbums()) {
-				            	for (Song song : album.getSongs()) {
+			            	MPArtist artist = (MPArtist) player.getDraggedItem();
+			            	final Iterable<MPAlbum> albums = player.getLibrary().getArtistAlbums(artist);
+				            for (MPAlbum album : albums) {
+				            	for (MPTrack song : album.getMPTracks()) {
 				            		if (!playlist.getSongs().contains(song)) {
 						            	playlist.addSong(song);
 				            		}
@@ -600,30 +605,30 @@ public class MainController implements Initializable, IntellitypeListener {
 				            }
 				            break;
 			            case "Album":
-			            	Album album = (Album) MusicPlayer.getDraggedItem();
-				            for (Song song : album.getSongs()) {
+			            	MPAlbum album = (MPAlbum) player.getDraggedItem();
+				            for (MPTrack song : album.getMPTracks()) {
 				            	if (!playlist.getSongs().contains(song)) {
 					            	playlist.addSong(song);
 			            		}
 				            }
 				            break;
 			            case "Playlist":
-			            	Playlist list = (Playlist) MusicPlayer.getDraggedItem();
-				            for (Song song : list.getSongs()) {
+			            	Playlist list = (Playlist) player.getDraggedItem();
+				            for (MPTrack song : list.getSongs()) {
 				            	if (!playlist.getSongs().contains(song)) {
 					            	playlist.addSong(song);
 			            		}
 				            }
 				            break;
 			            case "Song":
-			            	Song song = (Song) MusicPlayer.getDraggedItem();
+			            	MPTrack song = (MPTrack) player.getDraggedItem();
 			            	if (!playlist.getSongs().contains(song)) {
 				            	playlist.addSong(song);
 		            		}
 				            break;
 			            case "List":
-							ObservableList<Song> songs = (ObservableList<Song>) MusicPlayer.getDraggedItem();
-			            	for (Song s : songs) {
+							ObservableList<MPTrack> songs = (ObservableList<MPTrack>) player.getDraggedItem();
+			            	for (MPTrack s : songs) {
 			            		if (!playlist.getSongs().contains(s)) {
 					            	playlist.addSong(s);
 			            		}
@@ -634,27 +639,21 @@ public class MainController implements Initializable, IntellitypeListener {
 					
 					event.consume();
 				});
-    			
     			cell.setPrefHeight(0);
     			cell.setOpacity(0);
-    			
     			playlistBox.getChildren().add(1, cell);
-    			
     			textBox.requestFocus();
-    			
     		} catch (Exception e) {
-    			
     			e.printStackTrace();
     		}
-        	
         	newPlaylistAnimation.play();
     	}
     }
     
     private String checkDuplicatePlaylist(String text, int i) {
-    	for (Playlist playlist : Library.getPlaylists()) {
+    	final List<Playlist> playlists = Lists.newArrayList();
+    	for (Playlist playlist : playlists) {
     		if (playlist.getTitle().equals(text)) {
-    			
     			int index = text.lastIndexOf(' ') + 1;
     			if (index != 0) {
     				try {
@@ -663,9 +662,7 @@ public class MainController implements Initializable, IntellitypeListener {
     					// do nothing
     				}
     			}
-    			
     			i++;
-    			
     			if (i == 1) {
     				text = checkDuplicatePlaylist(text + " " + i, i);
     			} else {
@@ -727,7 +724,9 @@ public class MainController implements Initializable, IntellitypeListener {
             Task<Void> task = new Task<Void>() {
 	        	@Override protected Void call() throws Exception {
 	        		Platform.runLater(() -> {
-	        			Library.getSongs().stream().filter(x -> x.getSelected()).forEach(x -> x.setSelected(false));
+	        			player.getLibrary().streamTracks()
+	        			.filter(x -> x.isSelected())
+	        			.forEach(x -> x.setSelected(false));
 	        			subViewRoot.setVisible(false);
 			        	subViewRoot.setContent(view);
 			        	subViewRoot.getContent().setOpacity(0);
@@ -782,7 +781,6 @@ public class MainController implements Initializable, IntellitypeListener {
     
     @FXML
     private void navigateToCurrentSong() {
-    	
     	Optional<Node> previous = sideBar.getChildren().stream()
                 .filter(x -> x.getStyleClass().get(0).equals("sideBarItemSelected")).findFirst();
 
@@ -801,12 +799,12 @@ public class MainController implements Initializable, IntellitypeListener {
         sideBar.getChildren().get(2).getStyleClass().setAll("sideBarItemSelected");
         
         ArtistsMainController artistsMainController = (ArtistsMainController) loadView("ArtistsMain");
-        Song song = MusicPlayer.getNowPlaying();
-        Artist artist = Library.getArtist(song.getArtist());
-        Album album = artist.getAlbums().stream().filter(x -> x.getTitle().equals(song.getAlbum())).findFirst().get();
+        MPTrack song = player.getNowPlaying();
+        MPArtist artist = MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next());
+        MPAlbum album = player.getLibrary().getArtistAlbums(artist).get(0);
         artistsMainController.selectArtist(artist);
         artistsMainController.selectAlbum(album);
-        artistsMainController.selectSong(song);
+        artistsMainController.selectTrack(song);
     }
 
     @FXML
@@ -841,10 +839,10 @@ public class MainController implements Initializable, IntellitypeListener {
 
     	sideBar.requestFocus();
     	
-        if (MusicPlayer.isPlaying()) {
-            MusicPlayer.pause();
+        if (player.isPlaying()) {
+            player.pause();
         } else {
-            MusicPlayer.play();
+            player.play();
         }
     }
 
@@ -852,14 +850,14 @@ public class MainController implements Initializable, IntellitypeListener {
     private void back() {
 
     	sideBar.requestFocus();
-        MusicPlayer.back();
+        player.back();
     }
 
     @FXML
     private void skip() {
 
     	sideBar.requestFocus();
-        MusicPlayer.skip();
+        player.skip();
     }
     
     @FXML
@@ -873,7 +871,7 @@ public class MainController implements Initializable, IntellitypeListener {
     
     public void volumeClick() {
     	if (!volumePopup.isShowing()) {
-    		Stage stage = MusicPlayer.getStage();
+    		Stage stage = player.getStage();
     		volumePopup.setX(stage.getX() + stage.getWidth() - 265);
         	volumePopup.setY(stage.getY() + stage.getHeight() - 115);
     		volumePopup.show();
@@ -897,8 +895,8 @@ public class MainController implements Initializable, IntellitypeListener {
                 ImageView image = new ImageView();
                 image.setFitHeight(40);
                 image.setFitWidth(40);
-                image.setImage(artist.getArtistImage());
-                Label label = new Label(artist.getTitle());
+                image.setImage(null);
+                Label label = new Label(artist.getName());
                 label.setTextOverrun(OverrunStyle.CLIP);
                 label.getStyleClass().setAll("searchLabel");
                 cell.getChildren().addAll(image, label);
@@ -931,7 +929,7 @@ public class MainController implements Initializable, IntellitypeListener {
                 ImageView image = new ImageView();
                 image.setFitHeight(40);
                 image.setFitWidth(40);
-                image.setImage(album.getArtwork());
+                image.setImage(Utils.getAlbumArtwork(player.getLibrary(), album));
                 Label label = new Label(album.getTitle());
                 label.setTextOverrun(OverrunStyle.CLIP);
                 label.getStyleClass().setAll("searchLabel");
@@ -941,7 +939,7 @@ public class MainController implements Initializable, IntellitypeListener {
                 cell.getStyleClass().add("searchResult");
                 cell.setOnMouseClicked(event -> {
                     loadView("ArtistsMain");
-                    Artist artist = Library.getArtist(album.getArtist());
+                    MPArtist artist = MPFactory.getDefault().fromArtist(album.getArtists().iterator().next());
                     ArtistsMainController artistsMainController = (ArtistsMainController) loadView("ArtistsMain");
                     artistsMainController.selectArtist(artist);
                     artistsMainController.selectAlbum(album);
@@ -964,7 +962,7 @@ public class MainController implements Initializable, IntellitypeListener {
                 cell.setAlignment(Pos.CENTER_LEFT);
                 cell.setPrefWidth(226);
                 cell.setPrefHeight(50);
-                Label label = new Label(song.getTitle());
+                Label label = new Label(song.getTitle().toString());
                 label.setTextOverrun(OverrunStyle.CLIP);
                 label.getStyleClass().setAll("searchLabel");
                 cell.getChildren().add(label);
@@ -972,12 +970,12 @@ public class MainController implements Initializable, IntellitypeListener {
                 cell.getStyleClass().add("searchResult");
                 cell.setOnMouseClicked(event -> {
                     loadView("ArtistsMain");
-                    Artist artist = Library.getArtist(song.getArtist());
-                    Album album = artist.getAlbums().stream().filter(x -> x.getTitle().equals(song.getAlbum())).findFirst().get();
+                    MPArtist artist = MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next());
+                    MPAlbum album = player.getLibrary().getArtistAlbums(artist).get(0);
                     ArtistsMainController artistsMainController = (ArtistsMainController) loadView("ArtistsMain");
                     artistsMainController.selectArtist(artist);
                     artistsMainController.selectAlbum(album);
-                    artistsMainController.selectSong(song);
+                    artistsMainController.selectTrack(song);
                     searchBox.setText("");
                     sideBar.requestFocus();
                 });
@@ -990,7 +988,7 @@ public class MainController implements Initializable, IntellitypeListener {
             VBox.setMargin(label, new Insets(10, 10, 10, 10));
         }
         if (!searchPopup.isShowing()) {
-            Stage stage = MusicPlayer.getStage();
+            Stage stage = player.getStage();
             searchPopup.setX(stage.getX() + 18);
             searchPopup.setY(stage.getY() + 80);
             searchPopup.show();
@@ -1039,7 +1037,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setInterpolator(Interpolator.EASE_BOTH);
         }
     	
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
         	volumePopup.setOpacity(frac);
         }
     };
@@ -1049,7 +1048,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             volumePopup.setOpacity(1.0 - frac);
         }
     };
@@ -1060,7 +1060,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setInterpolator(Interpolator.EASE_BOTH);
         }
 
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             searchPopup.setOpacity(frac);
         }
     };
@@ -1070,7 +1071,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             searchPopup.setOpacity(1.0 - frac);
         }
     };
@@ -1081,7 +1083,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setInterpolator(Interpolator.EASE_BOTH);
             setOnFinished(x -> setSlideDirection());
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             double curWidth = collapsedWidth + (expandedWidth - collapsedWidth) * (1.0 - frac);
 			double searchWidth = searchCollapsed + (searchExpanded - searchCollapsed) * (1.0 - frac);
             sideBar.setPrefWidth(curWidth);
@@ -1096,7 +1099,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setInterpolator(Interpolator.EASE_BOTH);
             setOnFinished(x -> setSlideDirection());
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             double curWidth = collapsedWidth + (expandedWidth - collapsedWidth) * (frac);
 			double searchWidth = searchCollapsed + (searchExpanded - searchCollapsed) * (frac);
 			sideBar.setPrefWidth(curWidth);
@@ -1110,7 +1114,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             subViewRoot.setVvalue(0);
             double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (frac);
             subViewRoot.getContent().setTranslateY(expandedHeight - curHeight);
@@ -1123,7 +1128,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
             double curHeight = collapsedHeight + (expandedHeight - collapsedHeight) * (1 - frac);
             subViewRoot.getContent().setTranslateY(expandedHeight - curHeight);
             subViewRoot.getContent().setOpacity(1 - frac);
@@ -1135,7 +1141,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
         	letterBox.setPrefHeight(50);
     		letterBox.setOpacity(frac);
     		letterSeparator.setPrefHeight(25);
@@ -1148,7 +1155,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setCycleDuration(Duration.millis(250));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
     		letterBox.setOpacity(1.0 - frac);
     		letterSeparator.setOpacity(1.0 - frac);
         }
@@ -1159,7 +1167,8 @@ public class MainController implements Initializable, IntellitypeListener {
             setCycleDuration(Duration.millis(500));
             setInterpolator(Interpolator.EASE_BOTH);
         }
-        protected void interpolate(double frac) {
+        @Override
+		protected void interpolate(double frac) {
     		HBox cell = (HBox) playlistBox.getChildren().get(1);
     		if (frac < 0.5) {
     			cell.setPrefHeight(frac * 100);

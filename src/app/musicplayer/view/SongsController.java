@@ -3,11 +3,13 @@ package app.musicplayer.view;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.ResourceBundle;
 
+import org.rookit.dm.utils.PrintUtils;
+
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Library;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.ClippedTableCell;
 import app.musicplayer.util.ControlPanelTableCell;
 import app.musicplayer.util.PlayingTableCell;
@@ -35,15 +37,16 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.input.TransferMode;
 import javafx.util.Duration;
 
+@SuppressWarnings("javadoc")
 public class SongsController implements Initializable, SubView {
 
-	@FXML private TableView<Song> tableView;
-    @FXML private TableColumn<Song, Boolean> playingColumn;
-    @FXML private TableColumn<Song, String> titleColumn;
-    @FXML private TableColumn<Song, String> artistColumn;
-    @FXML private TableColumn<Song, String> albumColumn;
-    @FXML private TableColumn<Song, String> lengthColumn;
-    @FXML private TableColumn<Song, Integer> playsColumn;
+	@FXML private TableView<MPTrack> tableView;
+    @FXML private TableColumn<MPTrack, Boolean> playingColumn;
+    @FXML private TableColumn<MPTrack, String> titleColumn;
+    @FXML private TableColumn<MPTrack, String> artistColumn;
+    @FXML private TableColumn<MPTrack, String> albumColumn;
+    @FXML private TableColumn<MPTrack, String> lengthColumn;
+    @FXML private TableColumn<MPTrack, Integer> playsColumn;
     
     // Initializes table view scroll bar.
     private ScrollBar scrollBar;
@@ -52,11 +55,13 @@ public class SongsController implements Initializable, SubView {
     private String currentSortColumn = "titleColumn";
     private String currentSortOrder = null;
     
-    private Song selectedSong;
+    private MPTrack selectedSong;
+    
+    private MusicPlayer player;
     
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-    	
+    	player = MusicPlayer.getCurrent();
     	tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
     	
     	titleColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
@@ -88,14 +93,14 @@ public class SongsController implements Initializable, SubView {
         });
         
         // Retrieves the list of songs in the library, sorts them, and adds them to the table.
-        ObservableList<Song> songs = Library.getSongs();
+        ObservableList<MPTrack> songs = player.getLibrary().getAllTracks();
 
-        Collections.sort(songs, (x, y) -> compareSongs(x, y));
+        Collections.sort(songs);
         
         tableView.setItems(songs);
 
         tableView.setRowFactory(x -> {
-            TableRow<Song> row = new TableRow<>();
+            TableRow<MPTrack> row = new TableRow<>();
 
             PseudoClass playing = PseudoClass.getPseudoClass("playing");
 
@@ -108,14 +113,14 @@ public class SongsController implements Initializable, SubView {
             	}
             	if (currentSong != null) {
                     currentSong.playingProperty().addListener(changeListener);
-                    row.pseudoClassStateChanged(playing, currentSong.getPlaying());
+                    row.pseudoClassStateChanged(playing, currentSong.isPlaying());
                 } else {
                     row.pseudoClassStateChanged(playing, false);
                 }
             });
 
             row.setOnMouseClicked(event -> {
-            	TableViewSelectionModel<Song> sm = tableView.getSelectionModel();
+            	TableViewSelectionModel<MPTrack> sm = tableView.getSelectionModel();
                 if (event.getClickCount() == 2 && !row.isEmpty()) {
                     play();
                 } else if (event.isShiftDown()) {
@@ -210,52 +215,42 @@ public class SongsController implements Initializable, SubView {
 				return -1;
 			}
         	
-        	Song first = Library.getSong(x);
-        	Song second = Library.getSong(y);
+//        	MPTrack first = library.getSong(x);
+//        	MPTrack second = library.getSong(y);
         	
-        	return compareSongs(first, second);
+        	return x.compareTo(y);
         });
         
-        artistColumn.setComparator((first, second) -> Library.getArtist(first).compareTo(Library.getArtist(second)));
+        artistColumn.setComparator(new Comparator<String>() {
+			@Override
+			public int compare(String o1, String o2) {
+				return o1.compareTo(o2);
+			}
+		});
+        albumColumn.setComparator(new Comparator<String>() {
+			@Override
+			public int compare(String o1, String o2) {
+				return o1.compareTo(o2);
+			}
+		});
+//        artistColumn.setComparator((first, second) -> library.getArtist(first).compareTo(library.getArtist(second)));
         
-        albumColumn.setComparator((first, second) -> Library.getAlbum(first).compareTo(Library.getAlbum(second)));
+//        albumColumn.setComparator((first, second) -> library.getAlbum(first).compareTo(library.getAlbum(second)));
     }
-    
-    private int compareSongs(Song x, Song y) {
-    	if (x == null && y == null) {
-    		return 0;
-    	} else if (x == null) {
-    		return 1;
-    	} else if (y == null) {
-    		return -1;
-    	}
-    	if (x.getTitle() == null && y.getTitle() == null) {
-    		// Both are equal.
-    		return 0;
-    	} else if (x.getTitle() == null) {
-    		// Null is after other strings.
-    		return 1;
-		} else if (y.getTitle() == null) {
-			// All other strings are before null.
-			return -1;
-		} else  /*(x.getTitle() != null && y.getTitle() != null)*/ {
-			return x.getTitle().compareTo(y.getTitle());
-		}
-	}
     
     @Override
     public void play() {
     	
-    	Song song = selectedSong;
-        ObservableList<Song> songList = tableView.getItems();
-        if (MusicPlayer.isShuffleActive()) {
+    	MPTrack song = selectedSong;
+        ObservableList<MPTrack> songList = tableView.getItems();
+        if (player.isShuffleActive()) {
         	Collections.shuffle(songList);
         	songList.remove(song);
         	songList.add(0, song);
         }
-        MusicPlayer.setNowPlayingList(songList);
-        MusicPlayer.setNowPlaying(song);
-        MusicPlayer.play();
+        player.setNowPlayingList(songList);
+        player.setNowPlaying(song);
+        player.play();
     }
     
     @Override
@@ -267,9 +262,9 @@ public class SongsController implements Initializable, SubView {
     	}
     	
     	// Retrieves songs from table.
-    	ObservableList<Song> songTableItems = tableView.getItems();
+    	ObservableList<MPTrack> songTableItems = tableView.getItems();
     	// Initializes counter for cells. Used to determine what cell to scroll to.
-    	int selectedCell = 0;
+    	double selectedCell = 0;
     	int selectedLetterCount = 0;
     	
     	// Retrieves the table view scroll bar.
@@ -279,9 +274,9 @@ public class SongsController implements Initializable, SubView {
 
         switch (currentSortColumn) {
             case "titleColumn":
-                for (Song song : songTableItems) {
+                for (MPTrack song : songTableItems) {
                     // Gets song title and compares first letter to selected letter.
-                    String songTitle = song.getTitle();
+                    String songTitle = song.getTitle().toString();
                     try {
                         char firstLetter = songTitle.charAt(0);
                         if (firstLetter < letter) {
@@ -296,9 +291,9 @@ public class SongsController implements Initializable, SubView {
                 }
                 break;
             case "artistColumn":
-                for (Song song : songTableItems) {
+                for (MPTrack song : songTableItems) {
                     // Removes article from song artist and compares it to selected letter.
-                    String songArtist = song.getArtist();
+                    String songArtist = PrintUtils.getIterableAsString(song.getMainArtists(), ", ");
                     try {
                         char firstLetter = removeArticle(songArtist).charAt(0);
                         if (firstLetter < letter) {
@@ -312,9 +307,10 @@ public class SongsController implements Initializable, SubView {
                 }
                 break;
             case "albumColumn":
-                for (Song song : songTableItems) {
+                for (MPTrack song : songTableItems) {
                     // Removes article from song album and compares it to selected letter.
-                    String songAlbum = song.getAlbum();
+//                    String songAlbum = song.getAlbum();
+                	String songAlbum = song.getTitle().toString();
                     try {
                         char firstLetter = removeArticle(songAlbum).charAt(0);
                         if (firstLetter < letter) {
@@ -336,14 +332,15 @@ public class SongsController implements Initializable, SubView {
     		finalVvalue = 1 - (((selectedCell + selectedLetterCount) * 50 - scrollBar.getHeight()) /
     				(songTableItems.size() * 50 - scrollBar.getHeight()));
     	} else {
-    		finalVvalue = (double) (selectedCell * 50) / (songTableItems.size() * 50 - scrollBar.getHeight());
+    		finalVvalue = selectedCell * 50 / (songTableItems.size() * 50 - scrollBar.getHeight());
     	}
     	
     	Animation scrollAnimation = new Transition() {
             {
                 setCycleDuration(Duration.millis(500));
             }
-            protected void interpolate(double frac) {
+            @Override
+			protected void interpolate(double frac) {
                 double vValue = startVvalue + ((finalVvalue - startVvalue) * frac);
                 scrollBar.setValue(vValue);
             }
@@ -357,23 +354,22 @@ public class SongsController implements Initializable, SubView {
 
         if (arr.length < 2) {
             return title;
-        } else {
-
-            String firstWord = arr[0];
-            String theRest = arr[1];
-
-            switch (firstWord) {
-                case "A":
-                case "An":
-                case "The":
-                    return theRest;
-                default:
-                    return title;
-            }
         }
+		String firstWord = arr[0];
+		String theRest = arr[1];
+
+		switch (firstWord) {
+		    case "A":
+		    case "An":
+		    case "The":
+		        return theRest;
+		    default:
+		        return title;
+		}
     }
     
-    public Song getSelectedSong() {
+    @Override
+	public MPTrack getSelectedSong() {
     	return selectedSong;
     }
 }

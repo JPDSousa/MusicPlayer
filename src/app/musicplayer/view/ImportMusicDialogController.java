@@ -1,6 +1,5 @@
 package app.musicplayer.view;
 
-import app.musicplayer.model.Library;
 import app.musicplayer.util.ImportMusicTask;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -51,7 +50,6 @@ public class ImportMusicDialogController {
 	        	@Override protected Boolean call() throws Exception {
 			        // Creates library.xml file from user music library.
 				    try {
-						Library.importMusic(musicDirectory, this);
 						return true;
 					} catch (Exception e) {
 						e.printStackTrace();

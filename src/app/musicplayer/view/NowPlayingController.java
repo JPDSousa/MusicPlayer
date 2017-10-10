@@ -5,8 +5,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.ResourceBundle;
 
+import com.google.common.collect.Lists;
+
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.ClippedTableCell;
 import app.musicplayer.util.ControlPanelTableCell;
 import app.musicplayer.util.PlayingTableCell;
@@ -31,24 +33,27 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.TransferMode;
 
+@SuppressWarnings("javadoc")
 public class NowPlayingController implements Initializable, SubView {
 
-    @FXML private TableView<Song> tableView;
-    @FXML private TableColumn<Song, Boolean> playingColumn;
-    @FXML private TableColumn<Song, String> titleColumn;
-    @FXML private TableColumn<Song, String> artistColumn;
-    @FXML private TableColumn<Song, String> albumColumn;
-    @FXML private TableColumn<Song, String> lengthColumn;
-    @FXML private TableColumn<Song, Integer> playsColumn;
+    @FXML private TableView<MPTrack> tableView;
+    @FXML private TableColumn<MPTrack, Boolean> playingColumn;
+    @FXML private TableColumn<MPTrack, String> titleColumn;
+    @FXML private TableColumn<MPTrack, String> artistColumn;
+    @FXML private TableColumn<MPTrack, String> albumColumn;
+    @FXML private TableColumn<MPTrack, String> lengthColumn;
+    @FXML private TableColumn<MPTrack, Integer> playsColumn;
     
-    private Song selectedSong;
+    private MPTrack selectedTrack;
+    private MusicPlayer player;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-    	
+    	player = MusicPlayer.getCurrent();
     	tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-        ObservableList<Song> songs = FXCollections.observableArrayList(MusicPlayer.getNowPlayingList());
+        ObservableList<MPTrack> songs = FXCollections.observableArrayList(
+        		Lists.newArrayList(player.getNowPlayingList().getPlaylist()));
 
         titleColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
         artistColumn.prefWidthProperty().bind(tableView.widthProperty().subtract(50).multiply(0.26));
@@ -79,27 +84,27 @@ public class NowPlayingController implements Initializable, SubView {
 
         tableView.setRowFactory(x -> {
 
-            TableRow<Song> row = new TableRow<>();
+            TableRow<MPTrack> row = new TableRow<>();
 
             PseudoClass playing = PseudoClass.getPseudoClass("playing");
 
             ChangeListener<Boolean> changeListener = (obs, oldValue, newValue) ->
                     row.pseudoClassStateChanged(playing, newValue);
 
-            row.itemProperty().addListener((obs, previousSong, currentSong) -> {
-            	if (previousSong != null) {
-            		previousSong.playingProperty().removeListener(changeListener);
+            row.itemProperty().addListener((obs, previousTrack, currentTrack) -> {
+            	if (previousTrack != null) {
+            		previousTrack.playingProperty().removeListener(changeListener);
             	}
-            	if (currentSong != null) {
-                    currentSong.playingProperty().addListener(changeListener);
-                    row.pseudoClassStateChanged(playing, currentSong.getPlaying());
+            	if (currentTrack != null) {
+                    currentTrack.playingProperty().addListener(changeListener);
+                    row.pseudoClassStateChanged(playing, currentTrack.isPlaying());
                 } else {
                     row.pseudoClassStateChanged(playing, false);
                 }
             });
 
             row.setOnMouseClicked(event -> {
-            	TableViewSelectionModel<Song> sm = tableView.getSelectionModel();
+            	TableViewSelectionModel<MPTrack> sm = tableView.getSelectionModel();
                 if (event.getClickCount() == 2 && !row.isEmpty()) {
                     play();
                 } else if (event.isShiftDown()) {
@@ -173,7 +178,7 @@ public class NowPlayingController implements Initializable, SubView {
         	}
         	if (newSelection != null && tableView.getSelectionModel().getSelectedIndices().size() == 1) {
         		newSelection.setSelected(true);
-        		selectedSong = newSelection;
+        		selectedTrack = newSelection;
         	}
         });
         
@@ -188,22 +193,23 @@ public class NowPlayingController implements Initializable, SubView {
     @Override
     public void play() {
     	
-    	Song song = selectedSong;
-        ObservableList<Song> songList = tableView.getItems();
-        if (MusicPlayer.isShuffleActive()) {
+    	MPTrack song = selectedTrack;
+        ObservableList<MPTrack> songList = tableView.getItems();
+        if (player.isShuffleActive()) {
         	Collections.shuffle(songList);
         	songList.remove(song);
         	songList.add(0, song);
         }
-        MusicPlayer.setNowPlayingList(songList);
-        MusicPlayer.setNowPlaying(song);
-        MusicPlayer.play();
+        player.setNowPlayingList(songList);
+        player.setNowPlaying(song);
+        player.play();
     }
     
     @Override
     public void scroll(char letter) {}
     
-    public Song getSelectedSong() {
-    	return selectedSong;
+    @Override
+    public MPTrack getSelectedSong() {
+    	return selectedTrack;
     }
 }
