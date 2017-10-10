@@ -6,8 +6,6 @@ import app.musicplayer.rookit.dm.MPFactory;
 
 import java.util.regex.Pattern;
 
-import org.rookit.mongodb.DBManager;
-
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 
@@ -17,12 +15,12 @@ public class Search implements Runnable{
 	private final BooleanProperty hasResults;
 	private SearchResult result;
 	private Thread searchThread;
-	private final DBManager library;
+	private final RookitLibrary library;
 	private final MPFactory factory;
 	private String text;
 
 	public Search(RookitLibrary library) {
-		this.library = library.getDatabase();
+		this.library = library;
 		this.factory = library.getFactory();
 		hasResults = new SimpleBooleanProperty(false);
 	}
@@ -50,10 +48,10 @@ public class Search implements Runnable{
 		hasResults.set(false);
 		final Pattern regex = Pattern.compile(".*"+Pattern.quote(text), Pattern.CASE_INSENSITIVE);
 		final SearchResult result = new SearchResult();
-		library.getTracks().withTitle(regex).stream().limit(3).map(factory::fromTrack).forEach(result::addResult);
-		library.getAlbums().withTitle(regex).stream().limit(3).map(factory::fromAlbum).forEach(result::addResult);
-		library.getArtists().withName(regex).stream().limit(3).map(factory::fromArtist).forEach(result::addResult);
-		library.getGenres().withName(regex).stream().limit(3).map(factory::fromGenre).forEach(result::addResult);
+		library.getDatabase().getTracks().withTitle(regex).stream().limit(3).map(factory::fromTrack).forEach(result::addResult);
+		library.getDatabase().getAlbums().withTitle(regex).stream().limit(3).map(album -> factory.fromAlbum(album, library)).forEach(result::addResult);
+		library.getDatabase().getArtists().withName(regex).stream().limit(3).map(factory::fromArtist).forEach(result::addResult);
+		library.getDatabase().getGenres().withName(regex).stream().limit(3).map(factory::fromGenre).forEach(result::addResult);
 		this.result = result;
 		hasResults.set(true);
 	}
