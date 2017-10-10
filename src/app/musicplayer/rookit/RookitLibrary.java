@@ -37,6 +37,7 @@ public class RookitLibrary {
 
 	private RookitLibrary(DBManager database) {
 		super();
+		database.init();
 		this.database = database;
 		factory = MPFactory.getDefault();
 	}

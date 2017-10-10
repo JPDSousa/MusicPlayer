@@ -102,6 +102,7 @@ public class MainController implements Initializable, IntellitypeListener {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
     	player = MusicPlayer.getCurrent();
+    	search = new Search(player.getLibrary());
     	resetLatch();
     	
     	controlBox.getChildren().remove(2);
