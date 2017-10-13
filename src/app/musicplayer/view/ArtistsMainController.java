@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.ResourceBundle;
 import java.util.concurrent.CountDownLatch;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import app.musicplayer.MusicPlayer;
@@ -23,7 +22,6 @@ import javafx.animation.Animation;
 import javafx.animation.Interpolator;
 import javafx.animation.Transition;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -249,7 +247,7 @@ public class ArtistsMainController implements Initializable, SubView {
 
                 MPTrack song = songs.get(0);
                 player.setNowPlayingList(songs);
-                player.setNowPlaying(song);
+                player.skipTo(song);
                 player.play();
 
             } else {
@@ -300,7 +298,7 @@ public class ArtistsMainController implements Initializable, SubView {
                 }
 
                 player.setNowPlayingList(songs);
-                player.setNowPlaying(songs.get(0));
+                player.skipTo(songs.get(0));
                 player.play();
 
             } else {
@@ -653,7 +651,7 @@ public class ArtistsMainController implements Initializable, SubView {
         }
 
         player.setNowPlayingList(songs);
-        player.setNowPlaying(song);
+        player.skipTo(song);
         player.play();
     }
     

@@ -52,7 +52,6 @@ public class VolumePopupController implements Initializable {
 	}
 
 	@FXML private void muteClick() {
-
 		PseudoClass muted = PseudoClass.getPseudoClass("muted");
 		boolean isMuted = mutedButton.isVisible();
 		muteButton.setVisible(isMuted);
@@ -60,6 +59,6 @@ public class VolumePopupController implements Initializable {
 		volumeSlider.pseudoClassStateChanged(muted, !isMuted);
 		frontVolumeTrack.pseudoClassStateChanged(muted, !isMuted);
 		volumeLabel.pseudoClassStateChanged(muted, !isMuted);
-		MusicPlayer.mute(isMuted);
+		MusicPlayer.getCurrent().mute(isMuted);
 	}
 }

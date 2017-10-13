@@ -1,5 +1,6 @@
 package app.musicplayer;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -7,8 +8,11 @@ import java.util.stream.Collectors;
 
 import org.rookit.mongodb.DBManager;
 
+import app.musicplayer.audio.AudioPlayer;
+import app.musicplayer.audio.AudioPlayerBuilder;
 import app.musicplayer.rookit.CurrentPlaylist;
 import app.musicplayer.rookit.RookitLibrary;
+import app.musicplayer.rookit.Utils;
 import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.util.Resources;
 import app.musicplayer.view.MainController;
@@ -20,26 +24,21 @@ import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.media.Media;
-import javafx.scene.media.MediaPlayer;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
 @SuppressWarnings("javadoc")
 public class MusicPlayer extends Application {
 
+	private static final Duration TIMER_GAP = new Duration(250);
+	
 	private static MainController mainController;
-	private static MediaPlayer mediaPlayer;
-	private static Timer timer;
-	private static int timerCounter;
-	private static int secondsPlayed;
 	private static Object draggedItem;
-	private static boolean isMuted = false;
-	
+
 	private static Stage stage;
-	
+
 	private static MusicPlayer current;
-	
+
 	public static MusicPlayer getCurrent() {
 		return current;
 	}
@@ -50,12 +49,30 @@ public class MusicPlayer extends Application {
 
 	private final RookitLibrary library;
 	private final CurrentPlaylist nowPlaying;
+	private AudioPlayer player;
+	private Timer timer;
 
 	public MusicPlayer() {
 		this.library = RookitLibrary.create(DBManager.open("localhost", 27039, "rookit"));
-		nowPlaying = new CurrentPlaylist(library);
+		nowPlaying = new CurrentPlaylist();
+		nowPlaying.addAll(library.streamTracks()
+				.filter(track -> track.getPath() != null)
+				.limit(50)
+				.collect(Collectors.toList()));
+		timer = new Timer();
 	}
-	
+
+	private AudioPlayer buildAudioPlayer() {
+		return AudioPlayerBuilder.newBuilder()
+				.withLibrary(library)
+				.onEnd(new OnEndNext())
+				.onPlay(new OnPlay())
+				.onPause(new OnPause())
+				.onSeek(new OnSeek())
+				.bindVolumeTo(mainController.getVolumeSlider().valueProperty().divide(200))
+				.build();
+	}
+
 	public RookitLibrary getLibrary() {
 		return library;
 	}
@@ -64,15 +81,16 @@ public class MusicPlayer extends Application {
 	public void start(Stage stage) throws Exception {
 		current = this;
 
-		timer = new Timer();
-		timerCounter = 0;
-		secondsPlayed = 0;
-
 		MusicPlayer.stage = stage;
 		MusicPlayer.stage.setTitle("Music Player");
 		MusicPlayer.stage.getIcons().add(new Image(this.getClass().getResource(Resources.IMG + "Icon.png").toString()));
 		MusicPlayer.stage.setOnCloseRequest(event -> {
 			Platform.exit();
+			try {
+				player.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 			System.exit(0);
 		});
 
@@ -93,34 +111,6 @@ public class MusicPlayer extends Application {
 		}
 
 		Thread thread = new Thread(() -> {
-			nowPlaying.addAll(library.streamTracks()
-					.filter(track -> track.getPath() != null)
-					.limit(50)
-					.collect(Collectors.toList()));
-
-			timer = new Timer();
-			timerCounter = 0;
-			secondsPlayed = 0;
-			Media media = new Media(nowPlaying.getCurrentURI());
-			mediaPlayer = new MediaPlayer(media);
-			mediaPlayer.setVolume(0.5);
-			mediaPlayer.setOnEndOfMedia(new SongSkipper());
-
-			//            File imgFolder = new File(Resources.JAR + "/img");
-			//            if (!imgFolder.exists()) {
-			//
-			//                Thread thread1 = new Thread(() -> {
-			//                    library.getArtists().forEach(Artist::downloadArtistImage);
-			//                });
-			//
-			//                Thread thread2 = new Thread(() -> {
-			//                    library.getAlbums().forEach(Album::downloadArtwork);
-			//                });
-			//
-			//                thread1.start();
-			//                thread2.start();
-			//            }
-
 			// Calls the function to initialize the main layout.
 			Platform.runLater(this::initMain);
 		});
@@ -149,30 +139,55 @@ public class MusicPlayer extends Application {
 
 			// Gives the controller access to the music player main application.
 			mainController = loader.getController();
-			mediaPlayer.volumeProperty().bind(mainController.getVolumeSlider().valueProperty().divide(200));
-
+			player = buildAudioPlayer();
+			player.load(nowPlaying.getCurrent());
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
 	}
 
-	private class SongSkipper implements Runnable {
+	private class OnEndNext implements Runnable {
 		@Override
 		public void run() {
 			skip();
 		}
 	}
 
+	private class OnSeek implements Runnable {
+		@Override
+		public void run() {
+			mainController.updateTimeLabels();
+		}
+	}
+
+	private class OnPlay implements Runnable {
+		@Override
+		public void run() {
+			timer.scheduleAtFixedRate(new TimeUpdater(), 0, Math.round(TIMER_GAP.toMillis()));
+			mainController.updatePlayPauseIcon(true);
+		}
+	}
+
+	private class OnPause implements Runnable {
+		@Override
+		public void run() {
+			timer.cancel();
+			timer = new Timer();
+			mainController.updatePlayPauseIcon(false);
+		}
+	}
+
 	private class TimeUpdater extends TimerTask {
-		private int length = (int) nowPlaying.getCurrent().getDuration()/1000 * 4;
+		private Duration length = new Duration(nowPlaying.getCurrent().getDuration());
 
 		@Override
 		public void run() {
 			Platform.runLater(() -> {
-				if (timerCounter < length) {
-					if (++timerCounter % 4 == 0) {
+				final Duration current = player.getCurrentTime();
+				if (current.lessThan(length)) {
+					final double seconds = current.toSeconds();
+					if (seconds - Math.round(seconds) < TIMER_GAP.toSeconds()) {
 						mainController.updateTimeLabels();
-						secondsPlayed++;
 					}
 					if (!mainController.isTimeSliderPressed()) {
 						mainController.updateTimeSlider();
@@ -181,43 +196,21 @@ public class MusicPlayer extends Application {
 			});
 		}
 	}
-
-	/**
-	 * Plays selected song.
-	 */
-	public void play() {
-		if (mediaPlayer != null && !isPlaying()) {
-			mediaPlayer.play();
-			timer.scheduleAtFixedRate(new TimeUpdater(), 0, 250);
-			mainController.updatePlayPauseIcon(true);
-		}
-	}
-
-	/**
-	 * Checks if a song is playing.
-	 */
-	public boolean isPlaying() {
-		return mediaPlayer != null && MediaPlayer.Status.PLAYING.equals(mediaPlayer.getStatus());
-	}
-
-	/**
-	 * Pauses selected song.
-	 */
-	public void pause() {
-		if (isPlaying()) {
-			mediaPlayer.pause();
-			timer.cancel();
-			timer = new Timer();
-			mainController.updatePlayPauseIcon(false);
-		}
+	
+	public void mute(boolean isMuted) {
+		player.mute(isMuted);
 	}
 
 	public void seek(int seconds) {
-		if (mediaPlayer != null) {
-			mediaPlayer.seek(new Duration(seconds * 1000));
-			timerCounter = seconds * 4;
-			mainController.updateTimeLabels();
-		}
+		player.seek(new Duration(seconds*1000));
+	}
+
+	public void play() {
+		player.play();
+	}
+
+	public void pause() {
+		player.pause();
 	}
 
 	/**
@@ -225,11 +218,11 @@ public class MusicPlayer extends Application {
 	 */
 	public void skip() {
 		if (nowPlaying.hasNext()) {
-			boolean isPlaying = isPlaying();
+			boolean isPlaying = player.isPlaying();
 			mainController.updatePlayPauseIcon(isPlaying);
-			setNowPlaying(nowPlaying.next());
+			skipTo(nowPlaying.next());
 			if (isPlaying) {
-				play();
+				player.play();
 			}
 		} else {
 			mainController.updatePlayPauseIcon(false);
@@ -237,22 +230,14 @@ public class MusicPlayer extends Application {
 	}
 
 	public void back() {
-		if (timerCounter > 20 || !nowPlaying.hasPrevious()) {
-			mainController.initializeTimeSlider();
-			seek(0);
+		boolean isPlaying = player.isPlaying();
+		if (player.getCurrentTime().toMillis() > 20 || !nowPlaying.hasPrevious()) {
+			skipTo(nowPlaying.getCurrent());
 		} else if(nowPlaying.hasPrevious()) {
-			boolean isPlaying = isPlaying();
-			setNowPlaying(nowPlaying.previous());
-			if (isPlaying) {
-				play();
-			}
+			skipTo(nowPlaying.previous());
 		}
-	}
-
-	public static void mute(boolean isMuted) {
-		MusicPlayer.isMuted = !isMuted;
-		if (mediaPlayer != null) {
-			mediaPlayer.setMute(!isMuted);
+		if (isPlaying) {
+			player.play();
 		}
 	}
 
@@ -273,6 +258,10 @@ public class MusicPlayer extends Application {
 
 	public boolean isShuffleActive() {
 		return nowPlaying.isShuffleActive();
+	}
+
+	public boolean isPlaying() {
+		return player.isPlaying();
 	}
 
 	public Stage getStage() {
@@ -304,29 +293,19 @@ public class MusicPlayer extends Application {
 		nowPlaying.addAll(list);
 	}
 
-	public void setNowPlaying(MPTrack song) {
-		nowPlaying.markCurrentAsPlayed(secondsPlayed);
-		final String uri = nowPlaying.skipTo(song);
-		if(uri != null) {
-			if (mediaPlayer != null) {
-				mediaPlayer.stop();
-			}
-			if (timer != null) {
-				timer.cancel();
-			}
-			timer = new Timer();
-			timerCounter = 0;
-			secondsPlayed = 0;
-			Media media = new Media(uri);
-			mediaPlayer = new MediaPlayer(media);
-			mediaPlayer.volumeProperty().bind(mainController.getVolumeSlider().valueProperty().divide(200));
-			mediaPlayer.setOnEndOfMedia(new SongSkipper());
-			mediaPlayer.setMute(isMuted);
-			mainController.updateNowPlayingButton();
-			mainController.initializeTimeSlider();
-			mainController.initializeTimeLabels();
-			song.setPlaying(true);
+	public void skipTo(MPTrack track) {
+		nowPlaying.markCurrentAsPlayed(player.getCurrentTime());
+		player.stop();
+		nowPlaying.skipTo(track);
+		if (timer != null) {
+			timer.cancel();
 		}
+		timer = new Timer();
+		player.load(track);
+		mainController.updateNowPlayingButton();
+		mainController.initializeTimeSlider();
+		mainController.initializeTimeLabels();
+		track.setPlaying(true);
 	}
 
 	public MPTrack getNowPlaying() {
@@ -334,19 +313,11 @@ public class MusicPlayer extends Application {
 	}
 
 	public String getTimePassed() {
-		int secondsPassed = timerCounter / 4;
-		int minutes = secondsPassed / 60;
-		int seconds = secondsPassed % 60;
-		return Integer.toString(minutes) + ":" + (seconds < 10 ? "0" + seconds : Integer.toString(seconds));
+		return Utils.duration2ClockString(player.getCurrentTime());
 	}
 
 	public String getTimeRemaining() {
-		final long secondsPassed = timerCounter / 4;
-		final long totalSeconds = getNowPlaying().getDuration();
-		final long secondsRemaining = totalSeconds - secondsPassed;
-		final long minutes = secondsRemaining / 60;
-		final long seconds = secondsRemaining % 60;
-		return Long.toString(minutes) + ":" + (seconds < 10 ? "0" + seconds : Long.toString(seconds));
+		return Utils.duration2ClockString(player.getRemainingTime());
 	}
 
 	public static void setDraggedItem(Object item) {

@@ -240,7 +240,6 @@ public class SongsController implements Initializable, SubView {
     
     @Override
     public void play() {
-    	
     	MPTrack song = selectedSong;
         ObservableList<MPTrack> songList = tableView.getItems();
         if (player.isShuffleActive()) {
@@ -249,7 +248,7 @@ public class SongsController implements Initializable, SubView {
         	songList.add(0, song);
         }
         player.setNowPlayingList(songList);
-        player.setNowPlaying(song);
+        player.skipTo(song);
         player.play();
     }
     

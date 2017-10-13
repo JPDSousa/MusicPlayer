@@ -238,7 +238,7 @@ public class PlaylistsController implements Initializable, SubView {
 			songs.add(0, song);
 		}
 		player.setNowPlayingList(songs);
-		player.setNowPlaying(song);
+		player.skipTo(song);
 		player.play();
 	}
 
@@ -307,7 +307,7 @@ public class PlaylistsController implements Initializable, SubView {
 	private void playPlaylist() {
 		ObservableList<MPTrack> songs = selectedPlaylist.getSongs();
 		player.setNowPlayingList(songs);
-		player.setNowPlaying(songs.get(0));
+		player.skipTo(songs.get(0));
 		player.play();
 	}
 

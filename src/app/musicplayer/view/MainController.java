@@ -348,7 +348,6 @@ public class MainController implements Initializable, IntellitypeListener {
     }
 
     public void updateTimeLabels() {
-
         timePassed.setText(player.getTimePassed());
         timeRemaining.setText(player.getTimeRemaining());
     }
