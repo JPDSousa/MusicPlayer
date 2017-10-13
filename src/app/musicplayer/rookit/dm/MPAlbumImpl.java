@@ -22,14 +22,15 @@ import app.musicplayer.rookit.Utils;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.image.Image;
 
-class MPAlbumImpl implements MPAlbum {
+@SuppressWarnings("javadoc")
+public class MPAlbumImpl implements MPAlbum {
 
 	private final Album delegate;
 	private final SimpleObjectProperty<Image> artworkProperty;
 	private final List<MPTrack> mpTracks;
 	private final MPFactory factory;
 
-	public MPAlbumImpl(Album delegate, RookitLibrary library) {
+	MPAlbumImpl(Album delegate, RookitLibrary library) {
 		super();
 		factory = library.getFactory();
 		this.delegate = delegate;

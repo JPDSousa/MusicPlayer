@@ -15,7 +15,8 @@ import org.smof.gridfs.SmofGridRef;
 
 import javafx.beans.property.SimpleBooleanProperty;
 
-class MPTrackImpl implements MPTrack {
+@SuppressWarnings("javadoc")
+public class MPTrackImpl implements MPTrack {
 
 	private final Track delegate;
 	private final SimpleBooleanProperty playingProperty;

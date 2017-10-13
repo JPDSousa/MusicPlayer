@@ -6,7 +6,8 @@ import java.time.LocalDateTime;
 import org.bson.types.ObjectId;
 import org.rookit.dm.genre.Genre;
 
-class MPGenreImpl implements MPGenre {
+@SuppressWarnings("javadoc")
+public class MPGenreImpl implements MPGenre {
 
 	private final Genre delegate;
 

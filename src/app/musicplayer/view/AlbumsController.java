@@ -4,11 +4,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.ResourceBundle;
-import java.util.stream.Collectors;
-
-import org.rookit.dm.utils.PrintUtils;
-
-import com.google.common.collect.Lists;
 
 import app.musicplayer.MusicPlayer;
 import app.musicplayer.rookit.Utils;
@@ -22,9 +17,7 @@ import javafx.animation.Animation;
 import javafx.animation.Interpolator;
 import javafx.animation.Transition;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
-import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.css.PseudoClass;
 import javafx.event.EventHandler;

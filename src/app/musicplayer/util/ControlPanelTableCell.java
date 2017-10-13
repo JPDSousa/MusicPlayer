@@ -1,10 +1,9 @@
 package app.musicplayer.util;
 
 import app.musicplayer.MusicPlayer;
-import app.musicplayer.model.Song;
+import app.musicplayer.rookit.dm.MPTrack;
 import app.musicplayer.view.PlaylistsController;
 import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -24,12 +23,12 @@ public class ControlPanelTableCell<S, T> extends TableCell<S, T> {
 		
 		super.updateItem(item, empty);
 		
-		Song song = (Song) this.getTableRow().getItem();
+		final MPTrack song = (MPTrack) this.getTableRow().getItem();
 		
 		if (empty || item == null || song == null) {
 			setText(null);
 			setGraphic(null);
-		} else if (!song.getSelected()) {
+		} else if (!song.isSelected()) {
 			setText(item.toString());
 			setGraphic(null);
 			song.selectedProperty().removeListener(listener);

@@ -16,12 +16,13 @@ import app.musicplayer.util.Resources;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.image.Image;
 
-class MPArtistImpl implements MPArtist {
+@SuppressWarnings("javadoc")
+public class MPArtistImpl implements MPArtist {
 
 	private final Artist delegate;
 	private final SimpleObjectProperty<Image> artworkProperty;
 
-	public MPArtistImpl(Artist delegate) {
+	MPArtistImpl(Artist delegate) {
 		super();
 		this.delegate = delegate;
 		this.artworkProperty = new SimpleObjectProperty<>(loadArtwork());
