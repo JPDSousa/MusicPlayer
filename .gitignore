@@ -12,3 +12,7 @@ img/
 /target/
 
 library\.xml
+
+audio_temp/
+
+data/

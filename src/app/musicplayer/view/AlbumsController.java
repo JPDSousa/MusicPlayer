@@ -454,7 +454,7 @@ public class AlbumsController implements Initializable, SubView {
         	songList.add(0, song);
         }
         player.setNowPlayingList(songList);
-        player.setNowPlaying(song);
+        player.skipTo(song);
         player.play();
     }
     
