@@ -11,22 +11,43 @@ import org.rookit.dm.track.Track;
 import org.rookit.dm.track.TrackTitle;
 import org.rookit.dm.track.TypeTrack;
 import org.rookit.dm.track.VersionTrack;
+import org.rookit.dm.utils.PrintUtils;
+import org.rookit.utils.print.TypeFormat;
 import org.smof.gridfs.SmofGridRef;
 
+import app.musicplayer.rookit.Utils;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.LongProperty;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleLongProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+import javafx.util.Duration;
 
 @SuppressWarnings("javadoc")
 public class MPTrackImpl implements MPTrack {
 
 	private final Track delegate;
-	private final SimpleBooleanProperty playingProperty;
-	private final SimpleBooleanProperty selectedProperty;
+	private final BooleanProperty playingProperty;
+	private final BooleanProperty selectedProperty;
+	private final StringProperty titleProperty;
+	private final StringProperty artistProperty;
+	private final StringProperty lengthProperty;
+	private final LongProperty playsProperty;
 
 	MPTrackImpl(Track delegate) {
 		super();
 		this.delegate = delegate;
 		this.playingProperty = new SimpleBooleanProperty(false);
 		this.selectedProperty = new SimpleBooleanProperty(false);
+		this.titleProperty = new SimpleStringProperty(getTitle().toString());
+		this.artistProperty = new SimpleStringProperty(getArtistsAsString());
+		this.lengthProperty = new SimpleStringProperty(Utils.duration2ClockString(new Duration(getDuration())));
+		this.playsProperty = new SimpleLongProperty(getPlays());
+	}
+	
+	private String getArtistsAsString() {
+		return PrintUtils.getIterableAsString(getMainArtists(), TypeFormat.TITLE);
 	}
 
 	@Override
@@ -42,6 +63,7 @@ public class MPTrackImpl implements MPTrack {
 	@Override
 	public void addMainArtist(Artist arg0) {
 		delegate.addMainArtist(arg0);
+		artistProperty.setValue(getArtistsAsString());
 	}
 
 	@Override
@@ -187,6 +209,7 @@ public class MPTrackImpl implements MPTrack {
 	@Override
 	public void play() {
 		delegate.play();
+		playsProperty.setValue(getPlays());
 	}
 
 	@Override
@@ -247,6 +270,7 @@ public class MPTrackImpl implements MPTrack {
 	@Override
 	public void setPlays(long arg0) {
 		delegate.setPlays(arg0);
+		playsProperty.setValue(getPlays());
 	}
 
 	@Override
@@ -262,11 +286,13 @@ public class MPTrackImpl implements MPTrack {
 	@Override
 	public void setTitle(String arg0) {
 		delegate.setTitle(arg0);
+		titleProperty.setValue(getTitle().toString());
 	}
 
 	@Override
 	public void setTitle(TrackTitle arg0) {
 		delegate.setTitle(arg0);
+		titleProperty.setValue(getTitle().toString());
 	}
 
 	@Override
@@ -275,7 +301,7 @@ public class MPTrackImpl implements MPTrack {
 	}
 
 	@Override
-	public SimpleBooleanProperty playingProperty() {
+	public BooleanProperty playingProperty() {
 		return playingProperty;
 	}
 
@@ -285,7 +311,7 @@ public class MPTrackImpl implements MPTrack {
 	}
 
 	@Override
-	public SimpleBooleanProperty selectedProperty() {
+	public BooleanProperty selectedProperty() {
 		return selectedProperty;
 	}
 
@@ -302,6 +328,26 @@ public class MPTrackImpl implements MPTrack {
 	@Override
 	public void setPlaying(boolean playing) {
 		playingProperty.set(playing);
+	}
+
+	@Override
+	public StringProperty titleProperty() {
+		return titleProperty;
+	}
+
+	@Override
+	public StringProperty artistsProperty() {
+		return artistProperty;
+	}
+
+	@Override
+	public StringProperty lenghProperty() {
+		return lengthProperty;
+	}
+
+	@Override
+	public LongProperty playsProperty() {
+		return playsProperty;
 	}
 	
 
