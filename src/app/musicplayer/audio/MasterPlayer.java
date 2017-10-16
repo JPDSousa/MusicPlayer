@@ -33,6 +33,9 @@ public class MasterPlayer implements AudioPlayer {
 	@Override
 	public void load(MPTrack track) {
 		final boolean wasMuted = isLoaded() && player.isMute();
+		if(isLoaded()) {
+			player.dispose();
+		}
 		final Path path = getPath(track);
 		final Media media = new Media(path.toUri().toString());
 		player = new MediaPlayer(media);
@@ -117,6 +120,14 @@ public class MasterPlayer implements AudioPlayer {
 	public void close() throws IOException {
 		stop();
 		player.dispose();
-		//FileUtils.deleteDirectory(AUDIO_TEMP.toFile());
+		Files.list(AUDIO_TEMP).forEach(this::delete);
+	}
+	
+	private void delete(Path path) {
+		try {
+			Files.deleteIfExists(path);
+		} catch (IOException e) {
+			System.err.println("Could not delete: " + path);
+		}
 	}
 }
