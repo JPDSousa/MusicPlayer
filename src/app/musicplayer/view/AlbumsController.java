@@ -83,19 +83,17 @@ public class AlbumsController implements Initializable, SubView {
 	public void initialize(URL location, ResourceBundle resources) {
 		player = MusicPlayer.getCurrent();
 		songTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-		ObservableList<MPAlbum> albums = player.getLibrary().getAllAlbums();
+		
+		final ObservableList<MPAlbum> albums = player.getLibrary().getAllAlbums();
 		Collections.sort(albums);
 
-        int limit = (albums.size() < 25) ? albums.size() : 25;
-
+        final int limit = Math.min(albums.size(), 25);
 		for (int i = 0; i < limit; i++) {
-
             MPAlbum album = albums.get(i);
             grid.getChildren().add(createCell(album, i));
 		}
 
-        int rows = (albums.size() % 5 == 0) ? albums.size() / 5 : albums.size() / 5 + 1;
-        
+		final int rows = (int) Math.ceil(albums.size()/5.0);
         // Sets the height and width of the grid to fill the screen.
         grid.prefHeightProperty().bind(gridBox.widthProperty().divide(5).add(16).multiply(rows));
         grid.prefWidthProperty().bind(gridBox.widthProperty());
@@ -110,8 +108,9 @@ public class AlbumsController implements Initializable, SubView {
         	}
         });
 
+        // TODO i'm guessing that this lazily loads the rest of the albums... this should
+        // be done as the user scrolls down, or by pagination... to guarantee scalability
         new Thread(() -> {
-
         	try {
         		Thread.sleep(1000);
         	} catch (Exception ex) {
@@ -262,13 +261,12 @@ public class AlbumsController implements Initializable, SubView {
 	}
 	
     private VBox createCell(MPAlbum album, int index) {
-
-        VBox cell = new VBox();
-        Label title = new Label(album.getTitle());
+        final VBox cell = new VBox();
+        final Label title = new Label(album.getFullTitle());
         final Image artwork = Utils.getAlbumArtwork(player.getLibrary(), album);
-		ImageView image = new ImageView(artwork);
+		final ImageView image = new ImageView(artwork);
         image.imageProperty().bind(album.artworkProperty());
-        VBox imageBox = new VBox();
+        final VBox imageBox = new VBox();
 
         title.setTextOverrun(OverrunStyle.CLIP);
         title.setWrapText(true);
