@@ -1,6 +1,7 @@
 package app.musicplayer.rookit;
 
 import org.rookit.dm.album.Album;
+import org.rookit.dm.artist.Artist;
 import org.rookit.dm.track.Track;
 
 import javafx.scene.image.Image;
@@ -16,6 +17,10 @@ public final class Utils {
 
 	public static Image getAlbumArtwork(RookitLibrary library, Album album) {
 		return new Image(library.stream(album.getCover()));
+	}
+	
+	public static Image getArtistArtwork(RookitLibrary library, Artist artist) {
+		return new Image(library.stream(artist.getPicture()));
 	}
 	
 	public static final String duration2ClockString(Duration duration) {

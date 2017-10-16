@@ -1,8 +1,5 @@
 package app.musicplayer.rookit.dm;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -11,8 +8,10 @@ import org.bson.types.ObjectId;
 import org.rookit.dm.artist.Artist;
 import org.rookit.dm.artist.TypeArtist;
 import org.rookit.dm.genre.Genre;
+import org.smof.gridfs.SmofGridRef;
 
-import app.musicplayer.util.Resources;
+import app.musicplayer.rookit.RookitLibrary;
+import app.musicplayer.rookit.Utils;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.image.Image;
 
@@ -22,29 +21,10 @@ public class MPArtistImpl implements MPArtist {
 	private final Artist delegate;
 	private final SimpleObjectProperty<Image> artworkProperty;
 
-	MPArtistImpl(Artist delegate) {
+	MPArtistImpl(Artist delegate, RookitLibrary library) {
 		super();
 		this.delegate = delegate;
-		this.artworkProperty = new SimpleObjectProperty<>(loadArtwork());
-	}
-	
-	private Path getImagePath() {
-		return Paths.get("img", getName() + ".jpg");
-	}
-
-	private Image loadArtwork() {
-		Image artistImage;
-		try {
-			Path path = getImagePath();
-			artistImage = new Image(path.toUri().toURL().toString());
-			if (artistImage.isError()) {
-				Files.delete(path);
-				artistImage = new Image(Resources.IMG + "artistsIcon.png");
-			}
-		} catch (Exception ex) {
-			artistImage = new Image(Resources.IMG + "artistsIcon.png");
-		}
-		return artistImage;
+		this.artworkProperty = new SimpleObjectProperty<>(Utils.getArtistArtwork(library, delegate));
 	}
 
 	@Override
@@ -245,6 +225,16 @@ public class MPArtistImpl implements MPArtist {
 	@Override
 	public Image getImage() {
 		return artworkProperty.get();
+	}
+
+	@Override
+	public SmofGridRef getPicture() {
+		return delegate.getPicture();
+	}
+
+	@Override
+	public void setPicture(byte[] arg0) {
+		delegate.setPicture(arg0);
 	}
 
 

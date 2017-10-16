@@ -306,7 +306,7 @@ public class MainController implements Initializable, IntellitypeListener {
         if (song != null) {
             nowPlayingTitle.setText(song.getTitle().toString());
             nowPlayingArtist.setText(PrintUtils.getIterableAsString(song.getMainArtists(), ", "));
-            nowPlayingArtwork.setImage(MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next()).getImage());
+            nowPlayingArtwork.setImage(MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next(), player.getLibrary()).getImage());
         } else {
             nowPlayingTitle.setText("");
             nowPlayingArtist.setText("");
@@ -800,7 +800,7 @@ public class MainController implements Initializable, IntellitypeListener {
         
         ArtistsMainController artistsMainController = (ArtistsMainController) loadView("ArtistsMain");
         MPTrack song = player.getNowPlaying();
-        MPArtist artist = MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next());
+        MPArtist artist = MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next(), player.getLibrary());
         MPAlbum album = player.getLibrary().getArtistAlbums(artist).get(0);
         artistsMainController.selectArtist(artist);
         artistsMainController.selectAlbum(album);
@@ -939,7 +939,7 @@ public class MainController implements Initializable, IntellitypeListener {
                 cell.getStyleClass().add("searchResult");
                 cell.setOnMouseClicked(event -> {
                     loadView("ArtistsMain");
-                    MPArtist artist = MPFactory.getDefault().fromArtist(album.getArtists().iterator().next());
+                    MPArtist artist = MPFactory.getDefault().fromArtist(album.getArtists().iterator().next(), player.getLibrary());
                     ArtistsMainController artistsMainController = (ArtistsMainController) loadView("ArtistsMain");
                     artistsMainController.selectArtist(artist);
                     artistsMainController.selectAlbum(album);
@@ -970,7 +970,7 @@ public class MainController implements Initializable, IntellitypeListener {
                 cell.getStyleClass().add("searchResult");
                 cell.setOnMouseClicked(event -> {
                     loadView("ArtistsMain");
-                    MPArtist artist = MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next());
+                    MPArtist artist = MPFactory.getDefault().fromArtist(song.getMainArtists().iterator().next(), player.getLibrary());
                     MPAlbum album = player.getLibrary().getArtistAlbums(artist).get(0);
                     ArtistsMainController artistsMainController = (ArtistsMainController) loadView("ArtistsMain");
                     artistsMainController.selectArtist(artist);

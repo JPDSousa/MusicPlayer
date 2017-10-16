@@ -67,7 +67,7 @@ public class RookitLibrary {
 		
 	public Stream<MPArtist> streamArtists() {
 		return database.getArtists()
-				.stream().map(factory::fromArtist);
+				.stream().map(artist -> factory.fromArtist(artist, this));
 	}
 	
 	public ObservableList<MPAlbum> getArtistAlbums(MPArtist artist) {
@@ -81,7 +81,7 @@ public class RookitLibrary {
 	}
 	
 	public MPArtist getArtist(String name) {
-		return factory.fromArtist(database.getArtists().withName(name).first());
+		return factory.fromArtist(database.getArtists().withName(name).first(), this);
 	}
 	
 	public Stream<MPGenre> streamGenres() {

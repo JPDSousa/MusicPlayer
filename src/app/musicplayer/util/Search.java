@@ -50,7 +50,7 @@ public class Search implements Runnable{
 		final SearchResult result = new SearchResult();
 		library.getDatabase().getTracks().withTitle(regex).stream().limit(3).map(factory::fromTrack).forEach(result::addResult);
 		library.getDatabase().getAlbums().withTitle(regex).stream().limit(3).map(album -> factory.fromAlbum(album, library)).forEach(result::addResult);
-		library.getDatabase().getArtists().withName(regex).stream().limit(3).map(factory::fromArtist).forEach(result::addResult);
+		library.getDatabase().getArtists().withName(regex).stream().limit(3).map(artist -> factory.fromArtist(artist, library)).forEach(result::addResult);
 		library.getDatabase().getGenres().withName(regex).stream().limit(3).map(factory::fromGenre).forEach(result::addResult);
 		this.result = result;
 		hasResults.set(true);

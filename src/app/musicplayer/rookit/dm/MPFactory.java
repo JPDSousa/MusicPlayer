@@ -29,8 +29,8 @@ public class MPFactory {
 		return new MPAlbumImpl(album, library);
 	}
 	
-	public MPArtist fromArtist(Artist artist) {
-		return new MPArtistImpl(artist);
+	public MPArtist fromArtist(Artist artist, RookitLibrary library) {
+		return new MPArtistImpl(artist, library);
 	}
 	
 	public MPGenre fromGenre(Genre genre) {
