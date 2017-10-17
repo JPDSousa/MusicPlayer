@@ -12,6 +12,7 @@ import org.smof.gridfs.SmofGridRef;
 
 import app.musicplayer.rookit.RookitLibrary;
 import app.musicplayer.rookit.Utils;
+import app.musicplayer.util.Resources;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.image.Image;
 
@@ -24,7 +25,14 @@ public class MPArtistImpl implements MPArtist {
 	MPArtistImpl(Artist delegate, RookitLibrary library) {
 		super();
 		this.delegate = delegate;
-		this.artworkProperty = new SimpleObjectProperty<>(Utils.getArtistArtwork(library, delegate));
+		this.artworkProperty = new SimpleObjectProperty<>(loadArtwork(delegate, library));
+	}
+
+	private Image loadArtwork(Artist delegate, RookitLibrary library) {
+		if(delegate.getPicture() != null && delegate.getPicture().getId() != null) {
+			return Utils.getArtistArtwork(library, delegate);
+		}
+		return new Image(Resources.IMG + "artistsIcon.png");
 	}
 
 	@Override
